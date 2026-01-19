@@ -1,0 +1,6 @@
+@TccConcursos.Api_HostAddress = http://localhost:5067
+
+GET {{TccConcursos.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
