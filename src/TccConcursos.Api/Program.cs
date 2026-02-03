@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TccConcursos.Api.Contracts.Concursos;
 using TccConcursos.Api.Contracts.Disciplinas;
+using TccConcursos.Api.Contracts.SessoesEstudo;
 using TccConcursos.Api.Contracts.Topicos;
 using TccConcursos.Domain.Entities;
 using TccConcursos.Infrastructure.Data;
@@ -319,6 +320,179 @@ topicos.MapDelete("/{topicoId:guid}", async (Guid disciplinaId, Guid topicoId, A
         return Results.NotFound();
 
     db.Topicos.Remove(entity);
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+})
+.WithOpenApi();
+#endregion
+
+#region Sessões de Estudo
+var sessoes = app.MapGroup("/topicos/{topicoId:guid}/sessoes")
+    .WithTags("SessoesEstudo");
+
+sessoes.MapPost("/", async (Guid topicoId, CreateSessaoEstudoRequest request, ApplicationDbContext db) =>
+{
+    if (request.Fim <= request.Inicio)
+        return Results.BadRequest("Fim deve ser maior que Início.");
+
+    var duracao = request.Fim - request.Inicio;
+    if (duracao.TotalHours > 24)
+        return Results.BadRequest("Duração da sessão não pode exceder 24 horas.");
+
+    var topicoExiste = await db.Topicos.AnyAsync(x => x.Id == topicoId);
+    if (!topicoExiste)
+        return Results.NotFound("Tópico não encontrado.");
+
+    // Tipo: 1=Teoria, 2=Revisao, 3=Questoes
+    if (request.Tipo is < 1 or > 3)
+        return Results.BadRequest("Tipo inválido. Use 1=Teoria, 2=Revisão, 3=Questões.");
+
+    if (request.Tipo == 3)
+    {
+        if (request.QuestoesTotal is null or <= 0)
+            return Results.BadRequest("QuestoesTotal é obrigatório e deve ser > 0 quando Tipo=Questões.");
+
+        if (request.QuestoesAcertos is null or < 0)
+            return Results.BadRequest("QuestoesAcertos é obrigatório e deve ser >= 0 quando Tipo=Questões.");
+
+        if (request.QuestoesAcertos > request.QuestoesTotal)
+            return Results.BadRequest("QuestoesAcertos não pode ser maior que QuestoesTotal.");
+    }
+    else
+    {
+        if (request.QuestoesTotal is not null && request.QuestoesTotal <= 0)
+            return Results.BadRequest("QuestoesTotal, se informado, deve ser > 0.");
+
+        if (request.QuestoesAcertos is not null && request.QuestoesAcertos < 0)
+            return Results.BadRequest("QuestoesAcertos, se informado, deve ser >= 0.");
+
+        if (request.QuestoesTotal is not null && request.QuestoesAcertos is not null &&
+            request.QuestoesAcertos > request.QuestoesTotal)
+            return Results.BadRequest("QuestoesAcertos não pode ser maior que QuestoesTotal.");
+    }
+
+    var entity = new SessaoEstudo
+    {
+        TopicoId = topicoId,
+        Inicio = request.Inicio,
+        Fim = request.Fim,
+        Tipo = (TccConcursos.Domain.Enums.TipoSessaoEstudo)request.Tipo,
+        QuestoesTotal = request.QuestoesTotal,
+        QuestoesAcertos = request.QuestoesAcertos
+    };
+
+    db.SessoesEstudo.Add(entity);
+    await db.SaveChangesAsync();
+
+    var response = new SessaoEstudoResponse(
+        entity.Id, entity.TopicoId, entity.Inicio, entity.Fim,
+        (int)entity.Tipo, entity.QuestoesTotal, entity.QuestoesAcertos);
+
+    return Results.Created($"/topicos/{topicoId}/sessoes/{entity.Id}", response);
+})
+.WithOpenApi();
+
+sessoes.MapGet("/", async (Guid topicoId, ApplicationDbContext db) =>
+{
+    var topicoExiste = await db.Topicos.AnyAsync(x => x.Id == topicoId);
+    if (!topicoExiste)
+        return Results.NotFound("Tópico não encontrado.");
+
+    var list = await db.SessoesEstudo
+        .AsNoTracking()
+        .Where(x => x.TopicoId == topicoId)
+        .OrderByDescending(x => x.Inicio)
+        .Select(x => new SessaoEstudoResponse(
+            x.Id, x.TopicoId, x.Inicio, x.Fim,
+            (int)x.Tipo, x.QuestoesTotal, x.QuestoesAcertos))
+        .ToListAsync();
+
+    return Results.Ok(list);
+})
+.WithOpenApi();
+
+sessoes.MapGet("/{sessaoId:guid}", async (Guid topicoId, Guid sessaoId, ApplicationDbContext db) =>
+{
+    var s = await db.SessoesEstudo
+        .AsNoTracking()
+        .Where(x => x.TopicoId == topicoId && x.Id == sessaoId)
+        .Select(x => new SessaoEstudoResponse(
+            x.Id, x.TopicoId, x.Inicio, x.Fim,
+            (int)x.Tipo, x.QuestoesTotal, x.QuestoesAcertos))
+        .FirstOrDefaultAsync();
+
+    return s is null ? Results.NotFound() : Results.Ok(s);
+})
+.WithOpenApi();
+
+sessoes.MapPut("/{sessaoId:guid}", async (Guid topicoId, Guid sessaoId, UpdateSessaoEstudoRequest request, ApplicationDbContext db) =>
+{
+    if (request.Fim <= request.Inicio)
+        return Results.BadRequest("Fim deve ser maior que Início.");
+
+    var duracao = request.Fim - request.Inicio;
+    if (duracao.TotalHours > 24)
+        return Results.BadRequest("Duração da sessão não pode exceder 24 horas.");
+
+    if (request.Tipo is < 1 or > 3)
+        return Results.BadRequest("Tipo inválido. Use 1=Teoria, 2=Revisão, 3=Questões.");
+
+    if (request.Tipo == 3)
+    {
+        if (request.QuestoesTotal is null or <= 0)
+            return Results.BadRequest("QuestoesTotal é obrigatório e deve ser > 0 quando Tipo=Questões.");
+
+        if (request.QuestoesAcertos is null or < 0)
+            return Results.BadRequest("QuestoesAcertos é obrigatório e deve ser >= 0 quando Tipo=Questões.");
+
+        if (request.QuestoesAcertos > request.QuestoesTotal)
+            return Results.BadRequest("QuestoesAcertos não pode ser maior que QuestoesTotal.");
+    }
+    else
+    {
+        if (request.QuestoesTotal is not null && request.QuestoesTotal <= 0)
+            return Results.BadRequest("QuestoesTotal, se informado, deve ser > 0.");
+
+        if (request.QuestoesAcertos is not null && request.QuestoesAcertos < 0)
+            return Results.BadRequest("QuestoesAcertos, se informado, deve ser >= 0.");
+
+        if (request.QuestoesTotal is not null && request.QuestoesAcertos is not null &&
+            request.QuestoesAcertos > request.QuestoesTotal)
+            return Results.BadRequest("QuestoesAcertos não pode ser maior que QuestoesTotal.");
+    }
+
+    var entity = await db.SessoesEstudo
+        .FirstOrDefaultAsync(x => x.TopicoId == topicoId && x.Id == sessaoId);
+
+    if (entity is null)
+        return Results.NotFound();
+
+    entity.Inicio = request.Inicio;
+    entity.Fim = request.Fim;
+    entity.Tipo = (TccConcursos.Domain.Enums.TipoSessaoEstudo)request.Tipo;
+    entity.QuestoesTotal = request.QuestoesTotal;
+    entity.QuestoesAcertos = request.QuestoesAcertos;
+
+    await db.SaveChangesAsync();
+
+    var response = new SessaoEstudoResponse(
+        entity.Id, entity.TopicoId, entity.Inicio, entity.Fim,
+        (int)entity.Tipo, entity.QuestoesTotal, entity.QuestoesAcertos);
+
+    return Results.Ok(response);
+})
+.WithOpenApi();
+
+sessoes.MapDelete("/{sessaoId:guid}", async (Guid topicoId, Guid sessaoId, ApplicationDbContext db) =>
+{
+    var entity = await db.SessoesEstudo
+        .FirstOrDefaultAsync(x => x.TopicoId == topicoId && x.Id == sessaoId);
+
+    if (entity is null)
+        return Results.NotFound();
+
+    db.SessoesEstudo.Remove(entity);
     await db.SaveChangesAsync();
 
     return Results.NoContent();
