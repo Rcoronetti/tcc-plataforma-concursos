@@ -47,6 +47,8 @@ namespace TccConcursos.Infrastructure.Data
                     .IsRequired()
                     .HasMaxLength(200);
 
+                entity.HasIndex(x => new { x.ConcursoId, x.Nome }).IsUnique();
+
                 entity.HasMany(x => x.Topicos)
                     .WithOne(x => x.Disciplina!)
                     .HasForeignKey(x => x.DisciplinaId)
