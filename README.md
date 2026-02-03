@@ -7,11 +7,11 @@ Aplicação web desenvolvida como Trabalho de Conclusão de Curso (**Pós-gradua
 ---
 
 ## Tecnologias
-- **C# / .NET**
+- **C# / .NET 8**
 - **Blazor**
 - **ASP.NET Core Web API**
-- **PostgreSQL**
-- **Entity Framework Core (Migrations)**
+- **PostgreSQL 18**
+- **Entity Framework Core 8 + Npgsql** (ORM e migrations)
 
 ---
 
@@ -35,5 +35,17 @@ Aplicação web desenvolvida como Trabalho de Conclusão de Curso (**Pós-gradua
 
 ---
 
-## Como executar (em breve)
-As instruções de execução local (API, Web e banco de dados) serão adicionadas após a configuração inicial da solução e do PostgreSQL.
+## Como executar
+
+### Pré-requisitos
+- **.NET 8 SDK** (instalado e configurado)
+- **PostgreSQL 18** rodando localmente na **porta 5433**
+  - Instale via instalador oficial ou Chocolatey
+  - Crie a database `tccconcursos` com owner `postgres`
+  - Usuário: `postgres` (senha padrão ou configurada)
+
+### Configuração do banco de dados
+1. Certifique-se de que o PostgreSQL 18 está rodando na porta 5433.
+2. No pgAdmin ou psql, conecte como `postgres` e crie a database:
+```sql
+   CREATE DATABASE tccconcursos OWNER = postgres ENCODING = 'UTF8';
