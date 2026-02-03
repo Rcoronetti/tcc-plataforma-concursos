@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TccConcursos.Api.Contracts.Concursos;
 using TccConcursos.Api.Contracts.Disciplinas;
+using TccConcursos.Api.Contracts.Topicos;
 using TccConcursos.Domain.Entities;
 using TccConcursos.Infrastructure.Data;
 
@@ -22,6 +23,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+# region Consursos
 var concursos = app.MapGroup("/concursos").WithTags("Concursos");
 
 concursos.MapPost("/", async (CreateConcursoRequest request, ApplicationDbContext db) =>
@@ -104,7 +106,9 @@ concursos.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
     return Results.NoContent();
 })
 .WithOpenApi();
+#endregion
 
+#region Disciplinas
 var disciplinas = app.MapGroup("/concursos/{concursoId:guid}/disciplinas")
     .WithTags("Disciplinas");
 
@@ -204,5 +208,122 @@ disciplinas.MapDelete("/{disciplinaId:guid}", async (Guid concursoId, Guid disci
     return Results.NoContent();
 })
 .WithOpenApi();
+#endregion
+
+#region Topicos
+var topicos = app.MapGroup("/disciplinas/{disciplinaId:guid}/topicos")
+    .WithTags("Topicos");
+
+topicos.MapPost("/", async (Guid disciplinaId, CreateTopicoRequest request, ApplicationDbContext db) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Nome))
+        return Results.BadRequest("Nome é obrigatório.");
+
+    if (request.Nome.Length > 200)
+        return Results.BadRequest("Nome deve ter no máximo 200 caracteres.");
+
+    var disciplinaExiste = await db.Disciplinas.AnyAsync(x => x.Id == disciplinaId);
+    if (!disciplinaExiste)
+        return Results.NotFound("Disciplina não encontrada.");
+
+    var nomeNormalizado = request.Nome.Trim().ToLower();
+
+    var jaExiste = await db.Topicos
+        .AnyAsync(x => x.DisciplinaId == disciplinaId && x.Nome.ToLower() == nomeNormalizado);
+
+    if (jaExiste)
+        return Results.Conflict("Já existe um tópico com este nome nesta disciplina.");
+
+    var entity = new Topico
+    {
+        DisciplinaId = disciplinaId,
+        Nome = request.Nome.Trim()
+    };
+
+    db.Topicos.Add(entity);
+    await db.SaveChangesAsync();
+
+    var response = new TopicoResponse(entity.Id, entity.DisciplinaId, entity.Nome);
+    return Results.Created($"/disciplinas/{disciplinaId}/topicos/{entity.Id}", response);
+})
+.WithOpenApi();
+
+
+topicos.MapGet("/", async (Guid disciplinaId, ApplicationDbContext db) =>
+{
+    var disciplinaExiste = await db.Disciplinas.AnyAsync(x => x.Id == disciplinaId);
+    if (!disciplinaExiste)
+        return Results.NotFound("Disciplina não encontrada.");
+
+    var list = await db.Topicos
+        .AsNoTracking()
+        .Where(x => x.DisciplinaId == disciplinaId)
+        .OrderBy(x => x.Nome)
+        .Select(x => new TopicoResponse(x.Id, x.DisciplinaId, x.Nome))
+        .ToListAsync();
+
+    return Results.Ok(list);
+})
+.WithOpenApi();
+
+topicos.MapGet("/{topicoId:guid}", async (Guid disciplinaId, Guid topicoId, ApplicationDbContext db) =>
+{
+    var t = await db.Topicos
+        .AsNoTracking()
+        .Where(x => x.DisciplinaId == disciplinaId && x.Id == topicoId)
+        .Select(x => new TopicoResponse(x.Id, x.DisciplinaId, x.Nome))
+        .FirstOrDefaultAsync();
+
+    return t is null ? Results.NotFound() : Results.Ok(t);
+})
+.WithOpenApi();
+
+topicos.MapPut("/{topicoId:guid}", async (Guid disciplinaId, Guid topicoId, UpdateTopicoRequest request, ApplicationDbContext db) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Nome))
+        return Results.BadRequest("Nome é obrigatório.");
+
+    if (request.Nome.Length > 200)
+        return Results.BadRequest("Nome deve ter no máximo 200 caracteres.");
+
+    var entity = await db.Topicos
+        .FirstOrDefaultAsync(x => x.DisciplinaId == disciplinaId && x.Id == topicoId);
+
+    if (entity is null)
+        return Results.NotFound();
+
+    var nomeNormalizado = request.Nome.Trim().ToLower();
+
+    var jaExiste = await db.Topicos.AnyAsync(x =>
+        x.DisciplinaId == disciplinaId &&
+        x.Id != topicoId &&
+        x.Nome.ToLower() == nomeNormalizado);
+
+    if (jaExiste)
+        return Results.Conflict("Já existe um tópico com este nome nesta disciplina.");
+
+    entity.Nome = request.Nome.Trim();
+    await db.SaveChangesAsync();
+
+    var response = new TopicoResponse(entity.Id, entity.DisciplinaId, entity.Nome);
+    return Results.Ok(response);
+})
+.WithOpenApi();
+
+topicos.MapDelete("/{topicoId:guid}", async (Guid disciplinaId, Guid topicoId, ApplicationDbContext db) =>
+{
+    var entity = await db.Topicos
+        .FirstOrDefaultAsync(x => x.DisciplinaId == disciplinaId && x.Id == topicoId);
+
+    if (entity is null)
+        return Results.NotFound();
+
+    db.Topicos.Remove(entity);
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+})
+.WithOpenApi();
+#endregion
 
 app.Run();
