@@ -38,8 +38,8 @@ Aplicação web desenvolvida como Trabalho de Conclusão de Curso (**Pós-gradua
 ## Como executar
 
 Esta solução é composta por dois projetos principais que devem ser executados simultaneamente:
-**`TccConcursos.Api:`** A Web API back-end que gerencia os dados.
-**`TccConcursos.Blazor.Server:**` A aplicação web front-end.
++ **`TccConcursos.Api:`** A Web API back-end que gerencia os dados.
++ **`TccConcursos.Blazor.Server:`** A aplicação web front-end.
 
 ### Pré-requisitos
 - **.NET 8 SDK**
@@ -93,10 +93,10 @@ e a API é usada como StartupProject para carregar a configuração e a injeçã
 ### 4. Executar a Solução (API + Front-end)
 No Visual Studio, configure a solução para iniciar os dois projetos:
 + Clique com o botão direito na **Solution** no Solution Explorer.
-+Selecione `Set Startup Projects....`
-+Escolha a opção `Multiple startup projects`.
-+Para **TccConcursos.Api** e **TccConcursos.Blazor.Server**, mude a "Action" para `Start`.
-+Clique em `OK`.
++ Selecione `Set Startup Projects....`
++ Escolha a opção `Multiple startup projects`.
++ Para **TccConcursos.Api** e **TccConcursos.Blazor.Server**, mude a "Action" para `Start`.
++ Clique em `OK`.
 
 Pressione **F5** para executar. A API será iniciada e uma janela do navegador abrirá com a aplicação Blazor.
 A API estará disponível em `https://localhost:7043`.
