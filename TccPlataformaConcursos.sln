@@ -13,13 +13,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TccConcursos.Api", "src\Tcc
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TccConcursos.Web", "src\TccConcursos.Web\TccConcursos.Web.csproj", "{C2DF91EA-9DDE-4667-A9A9-C454D0735199}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TccConcursos.Blazor.Server", "TccConcursos.Blazor.Server\TccConcursos.Blazor.Server.csproj", "{002FACB9-7D09-4907-BADE-18202FE128EC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{21E6035A-3768-4B6B-BB53-0F1348860E09}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -38,11 +37,21 @@ Global
 		{C2DF91EA-9DDE-4667-A9A9-C454D0735199}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C2DF91EA-9DDE-4667-A9A9-C454D0735199}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C2DF91EA-9DDE-4667-A9A9-C454D0735199}.Release|Any CPU.Build.0 = Release|Any CPU
+		{002FACB9-7D09-4907-BADE-18202FE128EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{002FACB9-7D09-4907-BADE-18202FE128EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{002FACB9-7D09-4907-BADE-18202FE128EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{002FACB9-7D09-4907-BADE-18202FE128EC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{21E6035A-3768-4B6B-BB53-0F1348860E09} = {D4BEC74C-AC4A-4E96-86E0-96700288E4AE}
 		{78F6F2DC-6B65-4361-A6F1-3992412647DB} = {D4BEC74C-AC4A-4E96-86E0-96700288E4AE}
 		{ACEC2E93-E460-4192-B71B-7635B1E2B9E7} = {D4BEC74C-AC4A-4E96-86E0-96700288E4AE}
 		{C2DF91EA-9DDE-4667-A9A9-C454D0735199} = {D4BEC74C-AC4A-4E96-86E0-96700288E4AE}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {CE04720A-17B7-4262-8B0E-8EE1762EE9A7}
 	EndGlobalSection
 EndGlobal

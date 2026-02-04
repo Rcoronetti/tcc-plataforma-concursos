@@ -1,0 +1,32 @@
+﻿@page "/concursos"
+@using TccConcursos.Blazor.Server.Services
+@inject ConcursosApi Api
+
+<h3>Concursos</h3>
+
+@if (concursos is null)
+{
+    <p>Carregando...</p>
+}
+else if (concursos.Count == 0)
+{
+    <p>Nenhum concurso cadastrado.</p>
+}
+else
+{
+    <ul>
+        @foreach (var c in concursos)
+        {
+            <li>@c.Nome (@(c.DataProva?.ToString() ?? "sem data"))</li>
+        }
+    </ul>
+}
+
+@code {
+    private List<ConcursosApi.ConcursoDto>? concursos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        concursos = await Api.GetConcursosAsync();
+    }
+}
