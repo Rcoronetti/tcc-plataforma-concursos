@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TccConcursos.Api.Contracts.Concursos;
+using TccConcursos.Api.Contracts.Dashboard;
 using TccConcursos.Api.Contracts.Disciplinas;
 using TccConcursos.Api.Contracts.SessoesEstudo;
 using TccConcursos.Api.Contracts.Topicos;
@@ -496,6 +497,109 @@ sessoes.MapDelete("/{sessaoId:guid}", async (Guid topicoId, Guid sessaoId, Appli
     await db.SaveChangesAsync();
 
     return Results.NoContent();
+})
+.WithOpenApi();
+#endregion
+
+#region Dashboard
+var dashboard = app.MapGroup("/dashboard")
+    .WithTags("Dashboard");
+
+dashboard.MapGet("/resumo", async (DateOnly? dataInicio, DateOnly? dataFim, ApplicationDbContext db) =>
+{
+    DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
+    DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
+
+    var query = db.SessoesEstudo.AsNoTracking().AsQueryable();
+
+    if (inicio.HasValue)
+        query = query.Where(x => x.Inicio >= inicio.Value);
+
+    if (fim.HasValue)
+        query = query.Where(x => x.Inicio <= fim.Value); // Corrigido: <=
+
+    var totalSessoes = await query.CountAsync();
+
+    // No Postgres, calculamos a diferença e pegamos os segundos totais / 60
+    var totalMinutosDouble = await query
+        .Select(x => (x.Fim - x.Inicio).TotalSeconds / 60.0)
+        .SumAsync();
+
+    var totalMinutos = (int)Math.Round(totalMinutosDouble, 0);
+
+    var totalQuestoes = await query
+        .Where(x => x.QuestoesTotal != null)
+        .Select(x => x.QuestoesTotal!.Value)
+        .SumAsync();
+
+    var totalAcertos = await query
+        .Where(x => x.QuestoesAcertos != null)
+        .Select(x => x.QuestoesAcertos!.Value)
+        .SumAsync();
+
+    double? taxa = totalQuestoes > 0
+        ? Math.Round((double)totalAcertos / totalQuestoes * 100.0, 2)
+        : null;
+
+    return Results.Ok(new DashboardResumoResponse(
+        totalSessoes,
+        totalMinutos,
+        totalQuestoes,
+        totalAcertos,
+        taxa
+    ));
+})
+.WithOpenApi();
+
+dashboard.MapGet("/por-disciplina", async (DateOnly? dataInicio, DateOnly? dataFim, ApplicationDbContext db) =>
+{
+    DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
+    DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
+
+    var sessoesQuery = db.SessoesEstudo.AsNoTracking().AsQueryable();
+
+    if (inicio.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio >= inicio.Value);
+
+    if (fim.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio <= fim.Value); // Corrigido: <=
+
+    var query =
+        from s in sessoesQuery
+        join t in db.Topicos.AsNoTracking() on s.TopicoId equals t.Id
+        join d in db.Disciplinas.AsNoTracking() on t.DisciplinaId equals d.Id
+        group s by new { d.Id, d.Nome } into g
+        orderby g.Key.Nome
+        select new
+        {
+            DisciplinaId = g.Key.Id,
+            DisciplinaNome = g.Key.Nome,
+            TotalSessoes = g.Count(),
+            TotalMinutos = g.Sum(x => (x.Fim - x.Inicio).TotalSeconds / 60.0),
+            TotalQuestoes = g.Sum(x => x.QuestoesTotal ?? 0),
+            TotalAcertos = g.Sum(x => x.QuestoesAcertos ?? 0)
+        };
+
+    var data = await query.ToListAsync();
+
+    var response = data.Select(x =>
+    {
+        double? taxa = x.TotalQuestoes > 0
+            ? Math.Round((double)x.TotalAcertos / x.TotalQuestoes * 100.0, 2)
+            : null;
+
+        return new DashboardPorDisciplinaResponse(
+            x.DisciplinaId,
+            x.DisciplinaNome,
+            x.TotalSessoes,
+            (int)Math.Round(x.TotalMinutos, 0),
+            x.TotalQuestoes,
+            x.TotalAcertos,
+            taxa
+        );
+    });
+
+    return Results.Ok(response);
 })
 .WithOpenApi();
 #endregion
