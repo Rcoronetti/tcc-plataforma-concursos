@@ -602,6 +602,67 @@ dashboard.MapGet("/por-disciplina", async (DateOnly? dataInicio, DateOnly? dataF
     return Results.Ok(response);
 })
 .WithOpenApi();
+
+dashboard.MapGet("/por-concurso", async (DateOnly? dataInicio, DateOnly? dataFim, ApplicationDbContext db) =>
+{
+    DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
+    DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
+
+    // Base: concursos -> disciplinas -> topicos (aqui é inner join; se um concurso não tiver disciplina,
+    // ainda assim queremos que apareça, então fazemos left join em disciplinas e topicos)
+    var query =
+        from c in db.Concursos.AsNoTracking()
+
+        join d in db.Disciplinas.AsNoTracking() on c.Id equals d.ConcursoId into disciplinas
+        from d in disciplinas.DefaultIfEmpty()
+
+        join t in db.Topicos.AsNoTracking() on d.Id equals t.DisciplinaId into topicos
+        from t in topicos.DefaultIfEmpty()
+
+        join s0 in db.SessoesEstudo.AsNoTracking() on t.Id equals s0.TopicoId into sessoes
+        from s in sessoes.DefaultIfEmpty()
+
+            // Filtros de data (aplicados só quando existe sessão)
+        where (s == null)
+              || ((inicio == null || s.Inicio >= inicio) && (fim == null || s.Inicio <= fim))
+
+        group s by new { c.Id, c.Nome } into g
+        orderby g.Key.Nome
+        select new
+        {
+            ConcursoId = g.Key.Id,
+            ConcursoNome = g.Key.Nome,
+            TotalSessoes = g.Count(x => x != null),
+            TotalMinutos = g.Where(x => x != null)
+                .Sum(x => (x!.Fim - x!.Inicio).TotalSeconds / 60.0),
+            TotalQuestoes = g.Where(x => x != null)
+                .Sum(x => x!.QuestoesTotal ?? 0),
+            TotalAcertos = g.Where(x => x != null)
+                .Sum(x => x!.QuestoesAcertos ?? 0)
+        };
+
+    var data = await query.ToListAsync();
+
+    var response = data.Select(x =>
+    {
+        double? taxa = x.TotalQuestoes > 0
+            ? Math.Round((double)x.TotalAcertos / x.TotalQuestoes * 100.0, 2)
+            : null;
+
+        return new DashboardPorConcursoResponse(
+            x.ConcursoId,
+            x.ConcursoNome,
+            x.TotalSessoes,
+            (int)Math.Round(x.TotalMinutos, 0),
+            x.TotalQuestoes,
+            x.TotalAcertos,
+            taxa
+        );
+    });
+
+    return Results.Ok(response);
+})
+.WithOpenApi();
 #endregion
 
 app.Run();
