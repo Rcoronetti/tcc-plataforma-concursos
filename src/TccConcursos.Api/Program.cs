@@ -608,54 +608,69 @@ dashboard.MapGet("/por-concurso", async (DateOnly? dataInicio, DateOnly? dataFim
     DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
     DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
 
-    // Base: concursos -> disciplinas -> topicos (aqui é inner join; se um concurso não tiver disciplina,
-    // ainda assim queremos que apareça, então fazemos left join em disciplinas e topicos)
-    var query =
-        from c in db.Concursos.AsNoTracking()
+    // 1) Busca todos os concursos (base para incluir zeros)
+    var concursos = await db.Concursos
+        .AsNoTracking()
+        .OrderBy(x => x.Nome)
+        .Select(x => new { x.Id, x.Nome })
+        .ToListAsync();
 
-        join d in db.Disciplinas.AsNoTracking() on c.Id equals d.ConcursoId into disciplinas
-        from d in disciplinas.DefaultIfEmpty()
+    // 2) Agrega sessões por concurso (somente concursos que têm sessões)
+    var sessoesQuery = db.SessoesEstudo.AsNoTracking().AsQueryable();
 
-        join t in db.Topicos.AsNoTracking() on d.Id equals t.DisciplinaId into topicos
-        from t in topicos.DefaultIfEmpty()
+    if (inicio.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio >= inicio.Value);
 
-        join s0 in db.SessoesEstudo.AsNoTracking() on t.Id equals s0.TopicoId into sessoes
-        from s in sessoes.DefaultIfEmpty()
+    if (fim.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio <= fim.Value);
 
-            // Filtros de data (aplicados só quando existe sessão)
-        where (s == null)
-              || ((inicio == null || s.Inicio >= inicio) && (fim == null || s.Inicio <= fim))
-
+    var agregados = await (
+        from s in sessoesQuery
+        join t in db.Topicos.AsNoTracking() on s.TopicoId equals t.Id
+        join d in db.Disciplinas.AsNoTracking() on t.DisciplinaId equals d.Id
+        join c in db.Concursos.AsNoTracking() on d.ConcursoId equals c.Id
         group s by new { c.Id, c.Nome } into g
-        orderby g.Key.Nome
         select new
         {
             ConcursoId = g.Key.Id,
-            ConcursoNome = g.Key.Nome,
-            TotalSessoes = g.Count(x => x != null),
-            TotalMinutos = g.Where(x => x != null)
-                .Sum(x => (x!.Fim - x!.Inicio).TotalSeconds / 60.0),
-            TotalQuestoes = g.Where(x => x != null)
-                .Sum(x => x!.QuestoesTotal ?? 0),
-            TotalAcertos = g.Where(x => x != null)
-                .Sum(x => x!.QuestoesAcertos ?? 0)
-        };
+            TotalSessoes = g.Count(),
+            TotalMinutos = g.Sum(x => (x.Fim - x.Inicio).TotalSeconds / 60.0),
+            TotalQuestoes = g.Sum(x => x.QuestoesTotal ?? 0),
+            TotalAcertos = g.Sum(x => x.QuestoesAcertos ?? 0)
+        }
+    ).ToListAsync();
 
-    var data = await query.ToListAsync();
+    // 3) Dicionário para lookup rápido
+    var dict = agregados.ToDictionary(x => x.ConcursoId);
 
-    var response = data.Select(x =>
+    // 4) Produz resposta incluindo zeros
+    var response = concursos.Select(c =>
     {
-        double? taxa = x.TotalQuestoes > 0
-            ? Math.Round((double)x.TotalAcertos / x.TotalQuestoes * 100.0, 2)
+        if (!dict.TryGetValue(c.Id, out var a))
+        {
+            return new DashboardPorConcursoResponse(
+                c.Id,
+                c.Nome,
+                0,
+                0,
+                0,
+                0,
+                null
+            );
+        }
+
+        var totalMinutos = (int)Math.Round(a.TotalMinutos, 0);
+        double? taxa = a.TotalQuestoes > 0
+            ? Math.Round((double)a.TotalAcertos / a.TotalQuestoes * 100.0, 2)
             : null;
 
         return new DashboardPorConcursoResponse(
-            x.ConcursoId,
-            x.ConcursoNome,
-            x.TotalSessoes,
-            (int)Math.Round(x.TotalMinutos, 0),
-            x.TotalQuestoes,
-            x.TotalAcertos,
+            c.Id,
+            c.Nome,
+            a.TotalSessoes,
+            totalMinutos,
+            a.TotalQuestoes,
+            a.TotalAcertos,
             taxa
         );
     });
