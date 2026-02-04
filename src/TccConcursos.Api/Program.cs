@@ -505,6 +505,7 @@ sessoes.MapDelete("/{sessaoId:guid}", async (Guid topicoId, Guid sessaoId, Appli
 var dashboard = app.MapGroup("/dashboard")
     .WithTags("Dashboard");
 
+#region Resumo
 dashboard.MapGet("/resumo", async (DateOnly? dataInicio, DateOnly? dataFim, ApplicationDbContext db) =>
 {
     DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
@@ -516,11 +517,10 @@ dashboard.MapGet("/resumo", async (DateOnly? dataInicio, DateOnly? dataFim, Appl
         query = query.Where(x => x.Inicio >= inicio.Value);
 
     if (fim.HasValue)
-        query = query.Where(x => x.Inicio <= fim.Value); // Corrigido: <=
+        query = query.Where(x => x.Inicio <= fim.Value);
 
     var totalSessoes = await query.CountAsync();
 
-    // No Postgres, calculamos a diferença e pegamos os segundos totais / 60
     var totalMinutosDouble = await query
         .Select(x => (x.Fim - x.Inicio).TotalSeconds / 60.0)
         .SumAsync();
@@ -550,7 +550,9 @@ dashboard.MapGet("/resumo", async (DateOnly? dataInicio, DateOnly? dataFim, Appl
     ));
 })
 .WithOpenApi();
+#endregion
 
+#region PorDisciplina
 dashboard.MapGet("/por-disciplina", async (DateOnly? dataInicio, DateOnly? dataFim, ApplicationDbContext db) =>
 {
     DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
@@ -562,8 +564,7 @@ dashboard.MapGet("/por-disciplina", async (DateOnly? dataInicio, DateOnly? dataF
         sessoesQuery = sessoesQuery.Where(x => x.Inicio >= inicio.Value);
 
     if (fim.HasValue)
-        sessoesQuery = sessoesQuery.Where(x => x.Inicio <= fim.Value); // Corrigido: <=
-
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio <= fim.Value);
     var query =
         from s in sessoesQuery
         join t in db.Topicos.AsNoTracking() on s.TopicoId equals t.Id
@@ -602,20 +603,20 @@ dashboard.MapGet("/por-disciplina", async (DateOnly? dataInicio, DateOnly? dataF
     return Results.Ok(response);
 })
 .WithOpenApi();
+#endregion
 
+#region PorConcurso
 dashboard.MapGet("/por-concurso", async (DateOnly? dataInicio, DateOnly? dataFim, ApplicationDbContext db) =>
 {
     DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
     DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
 
-    // 1) Busca todos os concursos (base para incluir zeros)
     var concursos = await db.Concursos
         .AsNoTracking()
         .OrderBy(x => x.Nome)
         .Select(x => new { x.Id, x.Nome })
         .ToListAsync();
 
-    // 2) Agrega sessões por concurso (somente concursos que têm sessões)
     var sessoesQuery = db.SessoesEstudo.AsNoTracking().AsQueryable();
 
     if (inicio.HasValue)
@@ -640,10 +641,8 @@ dashboard.MapGet("/por-concurso", async (DateOnly? dataInicio, DateOnly? dataFim
         }
     ).ToListAsync();
 
-    // 3) Dicionário para lookup rápido
     var dict = agregados.ToDictionary(x => x.ConcursoId);
 
-    // 4) Produz resposta incluindo zeros
     var response = concursos.Select(c =>
     {
         if (!dict.TryGetValue(c.Id, out var a))
@@ -679,5 +678,92 @@ dashboard.MapGet("/por-concurso", async (DateOnly? dataInicio, DateOnly? dataFim
 })
 .WithOpenApi();
 #endregion
+
+#region Por Topico
+dashboard.MapGet("/por-topico", async (Guid disciplinaId, DateOnly? dataInicio, DateOnly? dataFim, ApplicationDbContext db) =>
+{
+    // valida disciplina
+    var disciplinaExiste = await db.Disciplinas.AnyAsync(x => x.Id == disciplinaId);
+    if (!disciplinaExiste)
+        return Results.NotFound("Disciplina não encontrada.");
+
+    DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
+    DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
+
+    // Base: todos os tópicos da disciplina (para incluir zeros)
+    var topicos = await db.Topicos
+        .AsNoTracking()
+        .Where(x => x.DisciplinaId == disciplinaId)
+        .OrderBy(x => x.Nome)
+        .Select(x => new { x.Id, x.DisciplinaId, x.Nome })
+        .ToListAsync();
+
+    // Sessões filtradas por período
+    var sessoesQuery = db.SessoesEstudo.AsNoTracking().AsQueryable();
+
+    if (inicio.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio >= inicio.Value);
+
+    if (fim.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio <= fim.Value);
+
+    // Agrega sessões por tópico (somente tópicos com sessão)
+    var agregados = await (
+        from s in sessoesQuery
+        join t in db.Topicos.AsNoTracking() on s.TopicoId equals t.Id
+        where t.DisciplinaId == disciplinaId
+        group s by new { t.Id } into g
+        select new
+        {
+            TopicoId = g.Key.Id,
+            TotalSessoes = g.Count(),
+            TotalMinutos = g.Sum(x => (x.Fim - x.Inicio).TotalSeconds / 60.0),
+            TotalQuestoes = g.Sum(x => x.QuestoesTotal ?? 0),
+            TotalAcertos = g.Sum(x => x.QuestoesAcertos ?? 0)
+        }
+    ).ToListAsync();
+
+    var dict = agregados.ToDictionary(x => x.TopicoId);
+
+    var response = topicos.Select(t =>
+    {
+        if (!dict.TryGetValue(t.Id, out var a))
+        {
+            return new DashboardPorTopicoResponse(
+                t.Id,
+                t.DisciplinaId,
+                t.Nome,
+                0,
+                0,
+                0,
+                0,
+                null
+            );
+        }
+
+        var totalMinutos = (int)Math.Round(a.TotalMinutos, 0);
+
+        double? taxa = a.TotalQuestoes > 0
+            ? Math.Round((double)a.TotalAcertos / a.TotalQuestoes * 100.0, 2)
+            : null;
+
+        return new DashboardPorTopicoResponse(
+            t.Id,
+            t.DisciplinaId,
+            t.Nome,
+            a.TotalSessoes,
+            totalMinutos,
+            a.TotalQuestoes,
+            a.TotalAcertos,
+            taxa
+        );
+    });
+
+    return Results.Ok(response);
+})
+.WithOpenApi();
+#endregion
+#endregion
+
 
 app.Run();
