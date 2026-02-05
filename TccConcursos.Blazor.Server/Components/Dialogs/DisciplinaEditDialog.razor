@@ -1,0 +1,76 @@
+﻿@using MudBlazor
+@using TccConcursos.Blazor.Server.Services
+@inject ConcursosApi Api
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6">Editar disciplina</MudText>
+
+        <MudTextField @bind-Value="nome"
+                      Label="Nome"
+                      Variant="Variant.Outlined"
+                      Required="true"
+                      RequiredError="Informe o nome" />
+
+        @if (!string.IsNullOrWhiteSpace(erro))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-4">@erro</MudAlert>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancelar" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton OnClick="Salvar" Disabled="isBusy" Color="Color.Primary" Variant="Variant.Filled">
+            Salvar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public ConcursosApi.DisciplinaDto Disciplina { get; set; } = default!;
+
+    private string nome = string.Empty;
+    private bool isBusy;
+    private string? erro;
+
+    protected override void OnParametersSet()
+    {
+        nome = Disciplina.Nome;
+    }
+
+    private void Cancelar() => MudDialog.Cancel();
+
+    private async Task Salvar()
+    {
+        erro = null;
+
+        if (string.IsNullOrWhiteSpace(nome))
+        {
+            erro = "Informe o nome da disciplina.";
+            return;
+        }
+
+        isBusy = true;
+
+        try
+        {
+            var updated = await Api.UpdateDisciplinaAsync(
+                Disciplina.ConcursoId,
+                Disciplina.Id,
+                new ConcursosApi.UpdateDisciplinaRequest(nome.Trim())
+            );
+
+            MudDialog.Close(DialogResult.Ok(updated));
+        }
+        catch (Exception ex)
+        {
+            erro = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+}
