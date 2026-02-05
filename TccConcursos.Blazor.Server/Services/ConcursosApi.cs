@@ -137,6 +137,77 @@ public sealed class ConcursosApi
         return await client.GetFromJsonAsync<ConcursoDto>($"concursos/{id}", ct);
     }
 
+    public async Task<TopicoDto?> GetTopicoAsync(Guid disciplinaId, Guid topicoId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        return await client.GetFromJsonAsync<TopicoDto>($"disciplinas/{disciplinaId}/topicos/{topicoId}", ct);
+    }
+
+    public sealed record SessaoEstudoDto(
+    Guid Id,
+    Guid TopicoId,
+    DateTime Inicio,
+    DateTime Fim,
+    int Tipo,
+    int? QuestoesTotal,
+    int? QuestoesAcertos
+);
+
+    public sealed record CreateSessaoEstudoRequest(
+        DateTime Inicio,
+        DateTime Fim,
+        int Tipo,
+        int? QuestoesTotal,
+        int? QuestoesAcertos
+    );
+
+    public sealed record UpdateSessaoEstudoRequest(
+        DateTime Inicio,
+        DateTime Fim,
+        int Tipo,
+        int? QuestoesTotal,
+        int? QuestoesAcertos
+    );
+
+    public async Task<List<SessaoEstudoDto>> GetSessoesAsync(Guid topicoId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var data = await client.GetFromJsonAsync<List<SessaoEstudoDto>>($"topicos/{topicoId}/sessoes", ct);
+        return data ?? new List<SessaoEstudoDto>();
+    }
+
+    public async Task<SessaoEstudoDto> CreateSessaoAsync(Guid topicoId, CreateSessaoEstudoRequest request, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+
+        var resp = await client.PostAsJsonAsync($"topicos/{topicoId}/sessoes", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException($"Erro ao criar sessão. Status={(int)resp.StatusCode}. Body={body}");
+        }
+
+        var created = await resp.Content.ReadFromJsonAsync<SessaoEstudoDto>(cancellationToken: ct);
+        return created ?? throw new InvalidOperationException("API não retornou a sessão criada.");
+    }
+
+    public async Task<SessaoEstudoDto?> UpdateSessaoAsync(Guid topicoId, Guid sessaoId, UpdateSessaoEstudoRequest request, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+
+        var resp = await client.PutAsJsonAsync($"topicos/{topicoId}/sessoes/{sessaoId}", request, ct);
+        if (!resp.IsSuccessStatusCode) return null;
+
+        return await resp.Content.ReadFromJsonAsync<SessaoEstudoDto>(cancellationToken: ct);
+    }
+
+    public async Task<bool> DeleteSessaoAsync(Guid topicoId, Guid sessaoId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var resp = await client.DeleteAsync($"topicos/{topicoId}/sessoes/{sessaoId}", ct);
+        return resp.IsSuccessStatusCode;
+    }
+
     // DTOs
     public sealed record ConcursoDto(Guid Id, string Nome, DateOnly? DataProva);
     public sealed record CreateConcursoRequest(string Nome, DateOnly? DataProva);

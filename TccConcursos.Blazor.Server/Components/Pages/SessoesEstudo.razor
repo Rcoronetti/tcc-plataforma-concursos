@@ -1,4 +1,4 @@
-﻿@page "/concursos/{ConcursoId:guid}/disciplinas/{DisciplinaId:guid}/topicos"
+﻿@page "/concursos/{ConcursoId:guid}/disciplinas/{DisciplinaId:guid}/topicos/{TopicoId:guid}/sessoes"
 @rendermode InteractiveServer
 @using MudBlazor
 @using TccConcursos.Blazor.Server.Services
@@ -14,11 +14,9 @@
     </MudButton>
 
     <MudStack Spacing="0">
-        <MudText Typo="Typo.h5">
-            Tópicos — @(disciplinaNome ?? "Carregando...")
-        </MudText>
+        <MudText Typo="Typo.h5">Sessões de Estudo</MudText>
         <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
-            Concurso — @(concursoNome ?? "Carregando...")
+            Concurso — @(concursoNome ?? "Carregando...") • Disciplina — @(disciplinaNome ?? "Carregando...") • Tópico — @(topicoNome ?? "Carregando...")
         </MudText>
     </MudStack>
 </MudStack>
@@ -28,7 +26,7 @@
                Variant="Variant.Filled"
                Color="Color.Primary"
                OnClick="AbrirNovo">
-        Novo tópico
+        Nova sessão
     </MudButton>
 
     <MudButton Variant="Variant.Outlined" OnClick="Carregar">
@@ -44,19 +42,27 @@ else if (!string.IsNullOrWhiteSpace(loadError))
 {
     <MudAlert Severity="Severity.Error">@loadError</MudAlert>
 }
-else if (topicos.Count == 0)
+else if (sessoes.Count == 0)
 {
-    <MudAlert Severity="Severity.Info">Nenhum tópico cadastrado.</MudAlert>
+    <MudAlert Severity="Severity.Info">Nenhuma sessão cadastrada.</MudAlert>
 }
 else
 {
-    <MudTable Items="topicos" Dense="true" Hover="true">
+    <MudTable Items="sessoes" Dense="true" Hover="true">
         <HeaderContent>
-            <MudTh>Nome</MudTh>
+            <MudTh>Início</MudTh>
+            <MudTh>Fim</MudTh>
+            <MudTh>Tipo</MudTh>
+            <MudTh>Questões</MudTh>
+            <MudTh>Acertos</MudTh>
             <MudTh>Ações</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Nome">@context.Nome</MudTd>
+            <MudTd DataLabel="Início">@context.Inicio.ToString("dd/MM/yyyy HH:mm")</MudTd>
+            <MudTd DataLabel="Fim">@context.Fim.ToString("dd/MM/yyyy HH:mm")</MudTd>
+            <MudTd DataLabel="Tipo">@TipoToText(context.Tipo)</MudTd>
+            <MudTd DataLabel="Questões">@((context.QuestoesTotal?.ToString()) ?? "-")</MudTd>
+            <MudTd DataLabel="Acertos">@((context.QuestoesAcertos?.ToString()) ?? "-")</MudTd>
             <MudTd DataLabel="Ações">
                 <MudButton Icon="@Icons.Material.Filled.Edit"
                            Size="Size.Small"
@@ -72,11 +78,6 @@ else
                            OnClick="() => ConfirmarExcluir(context)">
                     Excluir
                 </MudButton>
-                <MudButton Size="Size.Small"
-                           Variant="Variant.Text"
-                           OnClick="() => AbrirSessoes(context.Id)">
-                    Sessões
-                </MudButton>
             </MudTd>
         </RowTemplate>
     </MudTable>
@@ -85,12 +86,15 @@ else
 @code {
     [Parameter] public Guid ConcursoId { get; set; }
     [Parameter] public Guid DisciplinaId { get; set; }
+    [Parameter] public Guid TopicoId { get; set; }
 
-    private List<ConcursosApi.TopicoDto> topicos = new();
+    private List<ConcursosApi.SessaoEstudoDto> sessoes = new();
     private bool isLoading = true;
     private string? loadError;
-    private string? disciplinaNome;
+
     private string? concursoNome;
+    private string? disciplinaNome;
+    private string? topicoNome;
 
     protected override async Task OnInitializedAsync()
     {
@@ -102,21 +106,25 @@ else
     {
         try
         {
+            var c = await Api.GetConcursoAsync(ConcursoId);
+            concursoNome = c?.Nome;
+
             var d = await Api.GetDisciplinaAsync(ConcursoId, DisciplinaId);
             disciplinaNome = d?.Nome;
 
-            var c = await Api.GetConcursoAsync(ConcursoId);
-            concursoNome = c?.Nome;
+            var t = await Api.GetTopicoAsync(DisciplinaId, TopicoId);
+            topicoNome = t?.Nome;
         }
         catch
         {
-            disciplinaNome = null;
             concursoNome = null;
+            disciplinaNome = null;
+            topicoNome = null;
         }
     }
 
     private void Voltar()
-        => Nav.NavigateTo($"/concursos/{ConcursoId}/disciplinas");
+        => Nav.NavigateTo($"/concursos/{ConcursoId}/disciplinas/{DisciplinaId}/topicos");
 
     private async Task Carregar()
     {
@@ -125,7 +133,7 @@ else
 
         try
         {
-            topicos = await Api.GetTopicosAsync(DisciplinaId);
+            sessoes = await Api.GetSessoesAsync(TopicoId);
         }
         catch (Exception ex)
         {
@@ -137,41 +145,49 @@ else
         }
     }
 
+    private static string TipoToText(int tipo) => tipo switch
+    {
+        1 => "Teoria",
+        2 => "Revisão",
+        3 => "Questões",
+        _ => $"Tipo {tipo}"
+    };
+
     private async Task AbrirNovo()
     {
-        var parameters = new DialogParameters { ["DisciplinaId"] = DisciplinaId };
+        var parameters = new DialogParameters { ["TopicoId"] = TopicoId };
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
 
-        var dialog = await DialogService.ShowAsync<TopicoCreateDialog>("", parameters, options);
+        var dialog = await DialogService.ShowAsync<SessaoCreateDialog>("", parameters, options);
         var result = await dialog.Result;
 
         if (result is not null && !result.Canceled)
         {
             await Carregar();
-            Snackbar.Add("Tópico criado com sucesso!", Severity.Success);
+            Snackbar.Add("Sessão criada com sucesso!", Severity.Success);
         }
     }
 
-    private async Task AbrirEditar(ConcursosApi.TopicoDto item)
+    private async Task AbrirEditar(ConcursosApi.SessaoEstudoDto item)
     {
-        var parameters = new DialogParameters { ["Topico"] = item };
+        var parameters = new DialogParameters { ["Sessao"] = item };
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
 
-        var dialog = await DialogService.ShowAsync<TopicoEditDialog>("", parameters, options);
+        var dialog = await DialogService.ShowAsync<SessaoEditDialog>("", parameters, options);
         var result = await dialog.Result;
 
         if (result is not null && !result.Canceled)
         {
             await Carregar();
-            Snackbar.Add("Tópico atualizado com sucesso!", Severity.Success);
+            Snackbar.Add("Sessão atualizada com sucesso!", Severity.Success);
         }
     }
 
-    private async Task ConfirmarExcluir(ConcursosApi.TopicoDto item)
+    private async Task ConfirmarExcluir(ConcursosApi.SessaoEstudoDto item)
     {
         var result = await DialogService.ShowMessageBox(
             "Confirmar exclusão",
-            $"Tem certeza que deseja excluir o tópico '{item.Nome}'?",
+            $"Tem certeza que deseja excluir esta sessão ({item.Inicio:dd/MM/yyyy HH:mm} - {item.Fim:dd/MM/yyyy HH:mm})?",
             yesText: "Excluir",
             cancelText: "Cancelar");
 
@@ -179,15 +195,15 @@ else
         {
             try
             {
-                var sucesso = await Api.DeleteTopicoAsync(item.DisciplinaId, item.Id);
+                var sucesso = await Api.DeleteSessaoAsync(item.TopicoId, item.Id);
                 if (sucesso)
                 {
                     await Carregar();
-                    Snackbar.Add("Tópico excluído com sucesso!", Severity.Success);
+                    Snackbar.Add("Sessão excluída com sucesso!", Severity.Success);
                 }
                 else
                 {
-                    Snackbar.Add("Erro ao excluir tópico.", Severity.Error);
+                    Snackbar.Add("Erro ao excluir sessão.", Severity.Error);
                 }
             }
             catch (Exception ex)
@@ -196,7 +212,4 @@ else
             }
         }
     }
-
-    private void AbrirSessoes(Guid topicoId)
-        => Nav.NavigateTo($"/concursos/{ConcursoId}/disciplinas/{DisciplinaId}/topicos/{topicoId}/sessoes");
 }

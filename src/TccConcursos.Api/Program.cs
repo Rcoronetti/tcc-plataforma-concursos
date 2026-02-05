@@ -389,8 +389,8 @@ sessoes.MapPost("/", async (Guid topicoId, CreateSessaoEstudoRequest request, Ap
     var entity = new SessaoEstudo
     {
         TopicoId = topicoId,
-        Inicio = request.Inicio,
-        Fim = request.Fim,
+        Inicio = request.Inicio.ToUniversalTime(),
+        Fim = request.Fim.ToUniversalTime(),
         Tipo = (TccConcursos.Domain.Enums.TipoSessaoEstudo)request.Tipo,
         QuestoesTotal = request.QuestoesTotal,
         QuestoesAcertos = request.QuestoesAcertos
@@ -482,8 +482,8 @@ sessoes.MapPut("/{sessaoId:guid}", async (Guid topicoId, Guid sessaoId, UpdateSe
     if (entity is null)
         return Results.NotFound();
 
-    entity.Inicio = request.Inicio;
-    entity.Fim = request.Fim;
+    entity.Inicio = request.Inicio.ToUniversalTime();
+    entity.Fim = request.Fim.ToUniversalTime();
     entity.Tipo = (TccConcursos.Domain.Enums.TipoSessaoEstudo)request.Tipo;
     entity.QuestoesTotal = request.QuestoesTotal;
     entity.QuestoesAcertos = request.QuestoesAcertos;
