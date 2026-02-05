@@ -86,6 +86,57 @@ public sealed class ConcursosApi
         return resp.IsSuccessStatusCode;
     }
 
+    public async Task<List<TopicoDto>> GetTopicosAsync(Guid disciplinaId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var data = await client.GetFromJsonAsync<List<TopicoDto>>($"disciplinas/{disciplinaId}/topicos", ct);
+        return data ?? new List<TopicoDto>();
+    }
+
+    public async Task<TopicoDto> CreateTopicoAsync(Guid disciplinaId, CreateTopicoRequest request, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+
+        var resp = await client.PostAsJsonAsync($"disciplinas/{disciplinaId}/topicos", request, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException($"Erro ao criar tópico. Status={(int)resp.StatusCode}. Body={body}");
+        }
+
+        var created = await resp.Content.ReadFromJsonAsync<TopicoDto>(cancellationToken: ct);
+        return created ?? throw new InvalidOperationException("API não retornou o tópico criado.");
+    }
+
+    public async Task<TopicoDto?> UpdateTopicoAsync(Guid disciplinaId, Guid topicoId, UpdateTopicoRequest request, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+
+        var resp = await client.PutAsJsonAsync($"disciplinas/{disciplinaId}/topicos/{topicoId}", request, ct);
+        if (!resp.IsSuccessStatusCode) return null;
+
+        return await resp.Content.ReadFromJsonAsync<TopicoDto>(cancellationToken: ct);
+    }
+
+    public async Task<bool> DeleteTopicoAsync(Guid disciplinaId, Guid topicoId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var resp = await client.DeleteAsync($"disciplinas/{disciplinaId}/topicos/{topicoId}", ct);
+        return resp.IsSuccessStatusCode;
+    }
+
+    public async Task<DisciplinaDto?> GetDisciplinaAsync(Guid concursoId, Guid disciplinaId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        return await client.GetFromJsonAsync<DisciplinaDto>($"concursos/{concursoId}/disciplinas/{disciplinaId}", ct);
+    }
+
+    public async Task<ConcursoDto?> GetConcursoAsync(Guid id, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        return await client.GetFromJsonAsync<ConcursoDto>($"concursos/{id}", ct);
+    }
+
     // DTOs
     public sealed record ConcursoDto(Guid Id, string Nome, DateOnly? DataProva);
     public sealed record CreateConcursoRequest(string Nome, DateOnly? DataProva);
@@ -93,5 +144,9 @@ public sealed class ConcursosApi
     public sealed record DisciplinaDto(Guid Id, Guid ConcursoId, string Nome);
     public sealed record CreateDisciplinaRequest(string Nome);
     public sealed record UpdateDisciplinaRequest(string Nome);
+    public sealed record TopicoDto(Guid Id, Guid DisciplinaId, string Nome);
+    public sealed record CreateTopicoRequest(string Nome);
+    public sealed record UpdateTopicoRequest(string Nome);
+
 
 }

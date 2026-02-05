@@ -1,4 +1,4 @@
-﻿@page "/concursos/{ConcursoId:guid}/disciplinas"
+﻿@page "/concursos/{ConcursoId:guid}/disciplinas/{DisciplinaId:guid}/topicos"
 @rendermode InteractiveServer
 @using MudBlazor
 @using TccConcursos.Blazor.Server.Services
@@ -14,7 +14,9 @@
     </MudButton>
 
     <MudStack Spacing="0">
-        <MudText Typo="Typo.h5">Disciplinas</MudText>
+        <MudText Typo="Typo.h5">
+            Tópicos — @(disciplinaNome ?? "Carregando...")
+        </MudText>
         <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
             Concurso — @(concursoNome ?? "Carregando...")
         </MudText>
@@ -26,7 +28,7 @@
                Variant="Variant.Filled"
                Color="Color.Primary"
                OnClick="AbrirNovo">
-        Nova disciplina
+        Novo tópico
     </MudButton>
 
     <MudButton Variant="Variant.Outlined" OnClick="Carregar">
@@ -42,13 +44,13 @@ else if (!string.IsNullOrWhiteSpace(loadError))
 {
     <MudAlert Severity="Severity.Error">@loadError</MudAlert>
 }
-else if (disciplinas.Count == 0)
+else if (topicos.Count == 0)
 {
-    <MudAlert Severity="Severity.Info">Nenhuma disciplina cadastrada.</MudAlert>
+    <MudAlert Severity="Severity.Info">Nenhum tópico cadastrado.</MudAlert>
 }
 else
 {
-    <MudTable Items="disciplinas" Dense="true" Hover="true">
+    <MudTable Items="topicos" Dense="true" Hover="true">
         <HeaderContent>
             <MudTh>Nome</MudTh>
             <MudTh>Ações</MudTh>
@@ -70,11 +72,6 @@ else
                            OnClick="() => ConfirmarExcluir(context)">
                     Excluir
                 </MudButton>
-                <MudButton Size="Size.Small"
-                           Variant="Variant.Text"
-                           OnClick="() => AbrirTopicos(context.Id)">
-                    Tópicos
-                </MudButton>
             </MudTd>
         </RowTemplate>
     </MudTable>
@@ -82,24 +79,13 @@ else
 
 @code {
     [Parameter] public Guid ConcursoId { get; set; }
+    [Parameter] public Guid DisciplinaId { get; set; }
 
-    private List<ConcursosApi.DisciplinaDto> disciplinas = new();
+    private List<ConcursosApi.TopicoDto> topicos = new();
     private bool isLoading = true;
     private string? loadError;
+    private string? disciplinaNome;
     private string? concursoNome;
-
-    private async Task CarregarCabecalho()
-    {
-        try
-        {
-            var c = await Api.GetConcursoAsync(ConcursoId);
-            concursoNome = c?.Nome;
-        }
-        catch
-        {
-            concursoNome = null;
-        }
-    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -107,7 +93,25 @@ else
         await Carregar();
     }
 
-    private void Voltar() => Nav.NavigateTo("/concursos");
+    private async Task CarregarCabecalho()
+    {
+        try
+        {
+            var d = await Api.GetDisciplinaAsync(ConcursoId, DisciplinaId);
+            disciplinaNome = d?.Nome;
+
+            var c = await Api.GetConcursoAsync(ConcursoId);
+            concursoNome = c?.Nome;
+        }
+        catch
+        {
+            disciplinaNome = null;
+            concursoNome = null;
+        }
+    }
+
+    private void Voltar()
+        => Nav.NavigateTo($"/concursos/{ConcursoId}/disciplinas");
 
     private async Task Carregar()
     {
@@ -116,7 +120,7 @@ else
 
         try
         {
-            disciplinas = await Api.GetDisciplinasAsync(ConcursoId);
+            topicos = await Api.GetTopicosAsync(DisciplinaId);
         }
         catch (Exception ex)
         {
@@ -130,39 +134,39 @@ else
 
     private async Task AbrirNovo()
     {
-        var parameters = new DialogParameters { ["ConcursoId"] = ConcursoId };
+        var parameters = new DialogParameters { ["DisciplinaId"] = DisciplinaId };
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
 
-        var dialog = await DialogService.ShowAsync<DisciplinaCreateDialog>("", parameters, options);
+        var dialog = await DialogService.ShowAsync<TopicoCreateDialog>("", parameters, options);
         var result = await dialog.Result;
 
         if (result is not null && !result.Canceled)
         {
             await Carregar();
-            Snackbar.Add("Disciplina criada com sucesso!", Severity.Success);
+            Snackbar.Add("Tópico criado com sucesso!", Severity.Success);
         }
     }
 
-    private async Task AbrirEditar(ConcursosApi.DisciplinaDto item)
+    private async Task AbrirEditar(ConcursosApi.TopicoDto item)
     {
-        var parameters = new DialogParameters { ["Disciplina"] = item };
+        var parameters = new DialogParameters { ["Topico"] = item };
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
 
-        var dialog = await DialogService.ShowAsync<DisciplinaEditDialog>("", parameters, options);
+        var dialog = await DialogService.ShowAsync<TopicoEditDialog>("", parameters, options);
         var result = await dialog.Result;
 
         if (result is not null && !result.Canceled)
         {
             await Carregar();
-            Snackbar.Add("Disciplina atualizada com sucesso!", Severity.Success);
+            Snackbar.Add("Tópico atualizado com sucesso!", Severity.Success);
         }
     }
 
-    private async Task ConfirmarExcluir(ConcursosApi.DisciplinaDto item)
+    private async Task ConfirmarExcluir(ConcursosApi.TopicoDto item)
     {
         var result = await DialogService.ShowMessageBox(
             "Confirmar exclusão",
-            $"Tem certeza que deseja excluir a disciplina '{item.Nome}'?",
+            $"Tem certeza que deseja excluir o tópico '{item.Nome}'?",
             yesText: "Excluir",
             cancelText: "Cancelar");
 
@@ -170,15 +174,15 @@ else
         {
             try
             {
-                var sucesso = await Api.DeleteDisciplinaAsync(item.ConcursoId, item.Id);
+                var sucesso = await Api.DeleteTopicoAsync(item.DisciplinaId, item.Id);
                 if (sucesso)
                 {
                     await Carregar();
-                    Snackbar.Add("Disciplina excluída com sucesso!", Severity.Success);
+                    Snackbar.Add("Tópico excluído com sucesso!", Severity.Success);
                 }
                 else
                 {
-                    Snackbar.Add("Erro ao excluir disciplina.", Severity.Error);
+                    Snackbar.Add("Erro ao excluir tópico.", Severity.Error);
                 }
             }
             catch (Exception ex)
@@ -187,7 +191,4 @@ else
             }
         }
     }
-
-    private void AbrirTopicos(Guid disciplinaId)
-    => Nav.NavigateTo($"/concursos/{ConcursoId}/disciplinas/{disciplinaId}/topicos");
 }

@@ -1,0 +1,66 @@
+﻿@using MudBlazor
+@using TccConcursos.Blazor.Server.Services
+@inject ConcursosApi Api
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6">Novo tópico</MudText>
+
+        <MudTextField @bind-Value="nome"
+                      Label="Nome"
+                      Variant="Variant.Outlined"
+                      Required="true"
+                      RequiredError="Informe o nome" />
+
+        @if (!string.IsNullOrWhiteSpace(erro))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-4">@erro</MudAlert>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancelar" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton OnClick="Salvar" Disabled="isBusy" Color="Color.Primary" Variant="Variant.Filled">
+            Salvar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid DisciplinaId { get; set; }
+
+    private string nome = string.Empty;
+    private bool isBusy;
+    private string? erro;
+
+    private void Cancelar() => MudDialog.Cancel();
+
+    private async Task Salvar()
+    {
+        erro = null;
+
+        if (string.IsNullOrWhiteSpace(nome))
+        {
+            erro = "Informe o nome do tópico.";
+            return;
+        }
+
+        isBusy = true;
+
+        try
+        {
+            var created = await Api.CreateTopicoAsync(DisciplinaId, new ConcursosApi.CreateTopicoRequest(nome.Trim()));
+            MudDialog.Close(DialogResult.Ok(created));
+        }
+        catch (Exception ex)
+        {
+            erro = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+}
