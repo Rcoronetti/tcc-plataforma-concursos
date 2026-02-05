@@ -1,32 +1,95 @@
 ﻿@page "/concursos"
+@using MudBlazor
 @using TccConcursos.Blazor.Server.Services
+@using TccConcursos.Blazor.Server.Components.Dialogs
 @inject ConcursosApi Api
+@inject IDialogService DialogService
 
-<h3>Concursos</h3>
+<MudText Typo="Typo.h4" Class="mb-4">Concursos</MudText>
 
-@if (concursos is null)
+<MudStack Row="true" Spacing="2" Class="mb-4">
+    <MudButton StartIcon="@Icons.Material.Filled.Add"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               OnClick="AbrirNovo">
+        Novo concurso
+    </MudButton>
+
+    <MudButton Variant="Variant.Outlined" OnClick="Carregar">
+        Recarregar
+    </MudButton>
+</MudStack>
+
+@if (isLoading)
 {
-    <p>Carregando...</p>
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <MudAlert Severity="Severity.Error">@loadError</MudAlert>
 }
 else if (concursos.Count == 0)
 {
-    <p>Nenhum concurso cadastrado.</p>
+    <MudAlert Severity="Severity.Info">Nenhum concurso cadastrado.</MudAlert>
 }
 else
 {
-    <ul>
-        @foreach (var c in concursos)
-        {
-            <li>@c.Nome (@(c.DataProva?.ToString() ?? "sem data"))</li>
-        }
-    </ul>
+    <MudTable Items="concursos" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Nome</MudTh>
+            <MudTh>Data da prova</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Nome">@context.Nome</MudTd>
+            <MudTd DataLabel="Data da prova">@((context.DataProva?.ToString("dd/MM/yyyy")) ?? "-")</MudTd>
+        </RowTemplate>
+    </MudTable>
 }
 
 @code {
-    private List<ConcursosApi.ConcursoDto>? concursos;
+    private List<ConcursosApi.ConcursoDto> concursos = new();
+    private bool isLoading = true;
+    private string? loadError;
 
     protected override async Task OnInitializedAsync()
     {
-        concursos = await Api.GetConcursosAsync();
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        loadError = null;
+        isLoading = true;
+
+        try
+        {
+            concursos = await Api.GetConcursosAsync();
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task AbrirNovo()
+    {
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = DialogService.Show<ConcursoCreateDialog>("", options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await Carregar();
+        }
     }
 }
