@@ -1,9 +1,11 @@
 ﻿@page "/concursos"
+@rendermode InteractiveServer
 @using MudBlazor
 @using TccConcursos.Blazor.Server.Services
 @using TccConcursos.Blazor.Server.Components.Dialogs
 @inject ConcursosApi Api
 @inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <MudText Typo="Typo.h4" Class="mb-4">Concursos</MudText>
 
@@ -38,10 +40,27 @@ else
         <HeaderContent>
             <MudTh>Nome</MudTh>
             <MudTh>Data da prova</MudTh>
+            <MudTh>Ações</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Nome">@context.Nome</MudTd>
             <MudTd DataLabel="Data da prova">@((context.DataProva?.ToString("dd/MM/yyyy")) ?? "-")</MudTd>
+            <MudTd DataLabel="Ações">
+                <MudButton Icon="@Icons.Material.Filled.Edit"
+                           Size="Size.Small"
+                           Variant="Variant.Text"
+                           Color="Color.Primary"
+                           OnClick="() => AbrirEditar(context)">
+                    Editar
+                </MudButton>
+                <MudButton Icon="@Icons.Material.Filled.Delete"
+                           Size="Size.Small"
+                           Variant="Variant.Text"
+                           Color="Color.Error"
+                           OnClick="() => ConfirmarExcluir(context)">
+                    Excluir
+                </MudButton>
+            </MudTd>
         </RowTemplate>
     </MudTable>
 }
@@ -90,6 +109,57 @@ else
         if (!result.Canceled)
         {
             await Carregar();
+            Snackbar.Add("Concurso criado com sucesso!", Severity.Success);
+        }
+    }
+
+    private async Task AbrirEditar(ConcursosApi.ConcursoDto item)
+    {
+        var parameters = new DialogParameters { ["Concurso"] = item };
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = DialogService.Show<ConcursoEditDialog>("", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await Carregar();
+            Snackbar.Add("Concurso atualizado com sucesso!", Severity.Success);
+        }
+    }
+
+    private async Task ConfirmarExcluir(ConcursosApi.ConcursoDto item)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Confirmar exclusão",
+            $"Tem certeza que deseja excluir o concurso '{item.Nome}'?",
+            yesText: "Excluir",
+            cancelText: "Cancelar");
+
+        if (result == true)
+        {
+            try
+            {
+                var sucesso = await Api.DeleteConcursoAsync(item.Id);
+                if (sucesso)
+                {
+                    await Carregar();
+                    Snackbar.Add("Concurso excluído com sucesso!", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Erro ao excluir concurso.", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
+            }
         }
     }
 }

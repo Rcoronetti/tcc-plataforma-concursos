@@ -31,7 +31,26 @@ public sealed class ConcursosApi
         return created ?? throw new InvalidOperationException("API não retornou o concurso criado.");
     }
 
-    public sealed record ConcursoDto(Guid Id, string Nome, DateOnly? DataProva);
+    public async Task<ConcursoDto?> UpdateConcursoAsync(Guid id, UpdateConcursoRequest request)
+    {
+        // CORREÇÃO: Criar o cliente a partir da factory
+        var client = _httpClientFactory.CreateClient("Api");
+        var response = await client.PutAsJsonAsync($"concursos/{id}", request);
 
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<ConcursoDto>();
+    }
+
+    public async Task<bool> DeleteConcursoAsync(Guid id)
+    {
+        // CORREÇÃO: Criar o cliente a partir da factory
+        var client = _httpClientFactory.CreateClient("Api");
+        var response = await client.DeleteAsync($"concursos/{id}");
+        return response.IsSuccessStatusCode;
+    }
+
+    // DTOs
+    public sealed record ConcursoDto(Guid Id, string Nome, DateOnly? DataProva);
     public sealed record CreateConcursoRequest(string Nome, DateOnly? DataProva);
+    public sealed record UpdateConcursoRequest(string Nome, DateOnly? DataProva); // CORREÇÃO: Removida a duplicata
 }
