@@ -195,6 +195,8 @@ public sealed class ConcursosApi
     {
         var client = _httpClientFactory.CreateClient("Api");
 
+        Console.WriteLine($"UPDATE SESSAO: Tipo={request.Tipo}, Total={request.QuestoesTotal}, Acertos={request.QuestoesAcertos}");
+
         var resp = await client.PutAsJsonAsync($"topicos/{topicoId}/sessoes/{sessaoId}", request, ct);
         if (!resp.IsSuccessStatusCode) return null;
 

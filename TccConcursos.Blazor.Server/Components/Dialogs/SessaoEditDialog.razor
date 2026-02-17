@@ -22,7 +22,7 @@
                       RequiredError="Informe o fim"
                       Class="mt-4" />
 
-        <MudSelect T="int" @bind-Value="tipo"
+        <MudSelect T="int" @bind-Value="tipo" @bind-Value:after="() => OnTipoChanged()"
                    Label="Tipo"
                    Variant="Variant.Outlined"
                    Class="mt-4">
@@ -31,17 +31,19 @@
             <MudSelectItem Value="3">Questões</MudSelectItem>
         </MudSelect>
 
-        <MudTextField @bind-Value="questoesTotal"
-                      Label="Questões (total)"
-                      Variant="Variant.Outlined"
-                      InputType="InputType.Number"
-                      Class="mt-4" />
+        <MudNumericField T="int?" @bind-Value="questoesTotal"
+                         Label="Questões (total)"
+                         Variant="Variant.Outlined"
+                         Disabled="@(tipo != 3)"
+                         Min="0"
+                         Class="mt-4" />
 
-        <MudTextField @bind-Value="questoesAcertos"
-                      Label="Acertos"
-                      Variant="Variant.Outlined"
-                      InputType="InputType.Number"
-                      Class="mt-2" />
+        <MudNumericField T="int?" @bind-Value="questoesAcertos"
+                         Label="Acertos"
+                         Variant="Variant.Outlined"
+                         Disabled="@(tipo != 3)"
+                         Min="0"
+                         Class="mt-2" />
 
         @if (!string.IsNullOrWhiteSpace(erro))
         {
@@ -85,6 +87,47 @@
     private static bool TryParseLocalDateTime(string? value, out DateTime dt)
         => DateTime.TryParse(value, out dt);
 
+    private void NormalizeNumbers()
+    {
+        if (tipo != 3)
+        {
+            questoesTotal = null;
+            questoesAcertos = null;
+        }
+    }
+
+    private bool Validate(DateTime inicio, DateTime fim)
+    {
+        if (fim <= inicio)
+        {
+            erro = "O fim deve ser maior que o início.";
+            return false;
+        }
+
+        if (tipo == 3)
+        {
+            if (questoesTotal is null || questoesTotal <= 0)
+            {
+                erro = "Informe o total de questões (maior que 0).";
+                return false;
+            }
+
+            if (questoesAcertos is null || questoesAcertos < 0)
+            {
+                erro = "Informe os acertos (0 ou maior).";
+                return false;
+            }
+
+            if (questoesAcertos > questoesTotal)
+            {
+                erro = "Acertos não pode ser maior que o total de questões.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private async Task Salvar()
     {
         erro = null;
@@ -100,6 +143,11 @@
             erro = "Informe um fim válido.";
             return;
         }
+
+        NormalizeNumbers();
+
+        if (!Validate(inicio, fim))
+            return;
 
         isBusy = true;
 
@@ -124,5 +172,18 @@
         {
             isBusy = false;
         }
+    }
+
+    private void OnTipoChanged()
+    {
+        Console.WriteLine($"Tipo mudou para {tipo}");
+
+        if (tipo != 3)
+        {
+            questoesTotal = null;
+            questoesAcertos = null;
+        }
+
+        StateHasChanged();
     }
 }
