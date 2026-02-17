@@ -1,28 +1,102 @@
 ﻿@inherits LayoutComponentBase
+@using MudBlazor
 
 <MudThemeProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
 
-<div class="page">
-    <div class="sidebar">
+<MudLayout>
+
+    <MudAppBar Color="Color.Primary"
+               Elevation="0"
+               Dense="true"
+               ClipMode="DrawerClipMode.Always">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Color="Color.Inherit"
+                       Edge="Edge.Start"
+                       OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-2">TccConcursos</MudText>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen"
+               Variant="DrawerVariant.Responsive"
+               Elevation="0"
+               ClipMode="DrawerClipMode.Always"
+               Class="app-drawer">
         <NavMenu />
-    </div>
+    </MudDrawer>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
+    <MudMainContent Class="app-content">
+        <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
             @Body
-        </article>
-    </main>
-</div>
+        </MudContainer>
+    </MudMainContent>
 
-<div id="blazor-error-ui">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
-</div>
+</MudLayout>
+
+<style>
+    /* Fundo gradiente escuro no drawer (igual a sidebar antiga) */
+    .app-drawer {
+        background: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+        color: #fff;
+        border-right: 1px solid rgba(255,255,255,.10);
+    }
+
+        /* aplica a cor branca em tudo que importa no nav */
+        .app-drawer .mud-navmenu,
+        .app-drawer .mud-nav-link,
+        .app-drawer .mud-nav-link-text,
+        .app-drawer .mud-nav-group,
+        .app-drawer .mud-nav-group-text,
+        .app-drawer .mud-typography,
+        .app-drawer .mud-icon-root,
+        .app-drawer .mud-nav-group-expand-icon {
+            color: rgba(255,255,255,.92) !important;
+            fill: rgba(255,255,255,.92) !important;
+        }
+
+            /* hover e ativo (pra ficar “vivo” como no template antigo) */
+            .app-drawer .mud-nav-link:hover {
+                background-color: rgba(255,255,255,.08) !important;
+            }
+
+            .app-drawer .mud-nav-link.active {
+                background-color: rgba(255,255,255,.12) !important;
+            }
+
+        /* item do grupo (quando expandido) */
+        .app-drawer .mud-nav-group-expanded > .mud-nav-link {
+            background-color: rgba(255,255,255,.06) !important;
+        }
+
+        /* Links do menu brancos */
+        .app-drawer .mud-nav-link,
+        .app-drawer .mud-nav-group,
+        .app-drawer .mud-navmenu {
+            color: rgba(255,255,255,.90);
+        }
+
+            /* Link ativo com fundo sutil */
+            .app-drawer .mud-nav-link.active {
+                background-color: rgba(255,255,255,.08);
+            }
+
+        /* Grupos expandidos */
+        .app-drawer .mud-nav-group-expanded {
+            background-color: rgba(255,255,255,.05);
+        }
+
+    /* Ajuste fino do conteúdo */
+    .app-content {
+        background-color: var(--mud-palette-background);
+        min-height: calc(100vh - var(--mud-appbar-height));
+    }
+</style>
+
+@code {
+    private bool _drawerOpen = true;
+
+    private void ToggleDrawer()
+        => _drawerOpen = !_drawerOpen;
+}

@@ -1,36 +1,73 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">TccConcursos.Blazor.Server</a>
-    </div>
-</div>
+﻿@using MudBlazor
+@using TccConcursos.Blazor.Server.Services
+@implements IDisposable
+@inject TccConcursos.Blazor.Server.Services.NavigationContext NavCtx
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<MudNavMenu Dense="true">
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
+    <MudNavLink Href="/concursos"
+                Match="NavLinkMatch.Prefix"
+                Icon="@Icons.Material.Filled.EmojiEvents">
+        Concursos
+    </MudNavLink>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="concursos">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Concursos
-            </NavLink>
-        </div>
+    @if (NavCtx.ConcursoId is not null)
+    {
+        <MudDivider Class="my-2" />
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
+        <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas")"
+                    Match="NavLinkMatch.Prefix"
+                    Icon="@Icons.Material.Filled.School">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudText>Disciplinas</MudText>
+                <MudText Typo="Typo.caption" Class="nav-context">
+                    @NavCtx.ConcursoNome
+                </MudText>
+            </MudStack>
+        </MudNavLink>
+    }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
-    </nav>
-</div>
+    @if (NavCtx.ConcursoId is not null && NavCtx.DisciplinaId is not null)
+    {
+        <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas/{NavCtx.DisciplinaId}/topicos")"
+                    Match="NavLinkMatch.Prefix"
+                    Icon="@Icons.Material.Filled.Bookmarks">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudText>Tópicos</MudText>
+                <MudText Typo="Typo.caption" Class="nav-context">
+                    @NavCtx.DisciplinaNome
+                </MudText>
+            </MudStack>
+        </MudNavLink>
+    }
 
+    @if (NavCtx.ConcursoId is not null && NavCtx.DisciplinaId is not null && NavCtx.TopicoId is not null)
+    {
+        <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas/{NavCtx.DisciplinaId}/topicos/{NavCtx.TopicoId}/sessoes")"
+                    Match="NavLinkMatch.Prefix"
+                    Icon="@Icons.Material.Filled.Timer">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudText>Sessões</MudText>
+                <MudText Typo="Typo.caption" Class="nav-context">
+                    @NavCtx.TopicoNome
+                </MudText>
+            </MudStack>
+        </MudNavLink>
+    }
+
+</MudNavMenu>
+
+<style>
+    .nav-context {
+        opacity: .80;
+        margin-left: 4px;
+    }
+</style>
+
+@code {
+    protected override void OnInitialized()
+        => NavCtx.OnChange += StateHasChanged;
+
+    public void Dispose()
+        => NavCtx.OnChange -= StateHasChanged;
+}

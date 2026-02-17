@@ -19,6 +19,7 @@ builder.Services.AddHttpClient("Api", client =>
 });
 
 builder.Services.AddScoped<ConcursosApi>();
+builder.Services.AddScoped<NavigationContext>();
 builder.Services.AddMudServices();
 
 var app = builder.Build();

@@ -7,6 +7,7 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject Services.NavigationContext NavCtx
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Spacing="2">
     <MudButton Variant="Variant.Outlined" OnClick="Voltar">
@@ -107,6 +108,13 @@ else
 
             var c = await Api.GetConcursoAsync(ConcursoId);
             concursoNome = c?.Nome;
+
+            // Setar contexto de navegação
+            NavCtx.ConcursoId = ConcursoId;
+            NavCtx.ConcursoNome = concursoNome;
+            NavCtx.DisciplinaId = DisciplinaId;
+            NavCtx.DisciplinaNome = disciplinaNome;
+            NavCtx.ClearBelowDisciplina();
         }
         catch
         {
