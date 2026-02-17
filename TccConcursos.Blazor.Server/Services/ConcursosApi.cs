@@ -210,7 +210,6 @@ public sealed class ConcursosApi
         return resp.IsSuccessStatusCode;
     }
 
-    // DTOs
     public sealed record ConcursoDto(Guid Id, string Nome, DateOnly? DataProva);
     public sealed record CreateConcursoRequest(string Nome, DateOnly? DataProva);
     public sealed record UpdateConcursoRequest(string Nome, DateOnly? DataProva);
@@ -220,6 +219,71 @@ public sealed class ConcursosApi
     public sealed record TopicoDto(Guid Id, Guid DisciplinaId, string Nome);
     public sealed record CreateTopicoRequest(string Nome);
     public sealed record UpdateTopicoRequest(string Nome);
+
+    public async Task<DashboardResumoDto?> GetDashboardResumoAsync(CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        return await client.GetFromJsonAsync<DashboardResumoDto>("dashboard/resumo", ct);
+    }
+
+    public async Task<DashboardPorConcursoDto?> GetDashboardPorConcursoAsync(Guid concursoId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        return await client.GetFromJsonAsync<DashboardPorConcursoDto>($"dashboard/por-concurso/{concursoId}", ct);
+    }
+
+    public async Task<List<DashboardPorDisciplinaDto>> GetDashboardDisciplinasPorConcursoAsync(Guid concursoId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var data = await client.GetFromJsonAsync<List<DashboardPorDisciplinaDto>>($"dashboard/por-concurso/{concursoId}/disciplinas", ct);
+        return data ?? new List<DashboardPorDisciplinaDto>();
+    }
+
+    public async Task<List<DashboardPorTopicoDto>> GetDashboardTopicosPorDisciplinaAsync(Guid disciplinaId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var data = await client.GetFromJsonAsync<List<DashboardPorTopicoDto>>($"dashboard/por-disciplina/{disciplinaId}/topicos", ct);
+        return data ?? new List<DashboardPorTopicoDto>();
+    }
+
+    public sealed record DashboardResumoDto(
+        int TotalSessoes,
+        int TotalMinutosEstudados,
+        int TotalQuestoes,
+        int TotalAcertos,
+        double? TaxaAcertoPercentual
+    );
+
+    public sealed record DashboardPorConcursoDto(
+        Guid ConcursoId,
+        string ConcursoNome,
+        int TotalSessoes,
+        int TotalMinutosEstudados,
+        int TotalQuestoes,
+        int TotalAcertos,
+        double? TaxaAcertoPercentual
+    );
+
+    public sealed record DashboardPorDisciplinaDto(
+        Guid DisciplinaId,
+        string DisciplinaNome,
+        int TotalSessoes,
+        int TotalMinutosEstudados,
+        int TotalQuestoes,
+        int TotalAcertos,
+        double? TaxaAcertoPercentual
+    );
+
+    public sealed record DashboardPorTopicoDto(
+        Guid TopicoId,
+        Guid DisciplinaId,
+        string TopicoNome,
+        int TotalSessoes,
+        int TotalMinutosEstudados,
+        int TotalQuestoes,
+        int TotalAcertos,
+        double? TaxaAcertoPercentual
+    );
 
 
 }

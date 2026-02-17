@@ -776,6 +776,155 @@ dashboard.MapGet("/por-topico", async (Guid disciplinaId, DateOnly? dataInicio, 
 })
 .WithOpenApi();
 #endregion
+
+#region Por Concurso Especifico
+dashboard.MapGet("/por-concurso/{concursoId:guid}", async (Guid concursoId, DateOnly? dataInicio, DateOnly? dataFim, ApplicationDbContext db) =>
+{
+    // Valida se concurso existe
+    var concurso = await db.Concursos
+        .AsNoTracking()
+        .FirstOrDefaultAsync(x => x.Id == concursoId);
+
+    if (concurso is null)
+        return Results.NotFound("Concurso não encontrado.");
+
+    DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
+    DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
+
+    var sessoesQuery = db.SessoesEstudo.AsNoTracking().AsQueryable();
+
+    if (inicio.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio >= inicio.Value);
+
+    if (fim.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio <= fim.Value);
+
+    var agregado = await (
+        from s in sessoesQuery
+        join t in db.Topicos.AsNoTracking() on s.TopicoId equals t.Id
+        join d in db.Disciplinas.AsNoTracking() on t.DisciplinaId equals d.Id
+        where d.ConcursoId == concursoId
+        group s by 1 into g
+        select new
+        {
+            TotalSessoes = g.Count(),
+            TotalMinutos = g.Sum(x => (x.Fim - x.Inicio).TotalSeconds / 60.0),
+            TotalQuestoes = g.Sum(x => x.QuestoesTotal ?? 0),
+            TotalAcertos = g.Sum(x => x.QuestoesAcertos ?? 0)
+        }
+    ).FirstOrDefaultAsync();
+
+    if (agregado is null)
+    {
+        return Results.Ok(new DashboardPorConcursoResponse(
+            concursoId,
+            concurso.Nome,
+            0,
+            0,
+            0,
+            0,
+            null
+        ));
+    }
+
+    var totalMinutos = (int)Math.Round(agregado.TotalMinutos, 0);
+    double? taxa = agregado.TotalQuestoes > 0
+        ? Math.Round((double)agregado.TotalAcertos / agregado.TotalQuestoes * 100.0, 2)
+        : null;
+
+    return Results.Ok(new DashboardPorConcursoResponse(
+        concursoId,
+        concurso.Nome,
+        agregado.TotalSessoes,
+        totalMinutos,
+        agregado.TotalQuestoes,
+        agregado.TotalAcertos,
+        taxa
+    ));
+})
+.WithOpenApi();
+#endregion
+
+#region Disciplinas Por Concurso Especifico
+dashboard.MapGet("/por-concurso/{concursoId:guid}/disciplinas", async (Guid concursoId, DateOnly? dataInicio, DateOnly? dataFim, ApplicationDbContext db) =>
+{
+    // Valida se concurso existe
+    var concursoExiste = await db.Concursos.AnyAsync(x => x.Id == concursoId);
+    if (!concursoExiste)
+        return Results.NotFound("Concurso não encontrado.");
+
+    DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
+    DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
+
+    // Base: todas as disciplinas do concurso
+    var disciplinas = await db.Disciplinas
+        .AsNoTracking()
+        .Where(x => x.ConcursoId == concursoId)
+        .OrderBy(x => x.Nome)
+        .Select(x => new { x.Id, x.Nome })
+        .ToListAsync();
+
+    var sessoesQuery = db.SessoesEstudo.AsNoTracking().AsQueryable();
+
+    if (inicio.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio >= inicio.Value);
+
+    if (fim.HasValue)
+        sessoesQuery = sessoesQuery.Where(x => x.Inicio <= fim.Value);
+
+    var agregados = await (
+        from s in sessoesQuery
+        join t in db.Topicos.AsNoTracking() on s.TopicoId equals t.Id
+        join d in db.Disciplinas.AsNoTracking() on t.DisciplinaId equals d.Id
+        where d.ConcursoId == concursoId
+        group s by new { d.Id } into g
+        select new
+        {
+            DisciplinaId = g.Key.Id,
+            TotalSessoes = g.Count(),
+            TotalMinutos = g.Sum(x => (x.Fim - x.Inicio).TotalSeconds / 60.0),
+            TotalQuestoes = g.Sum(x => x.QuestoesTotal ?? 0),
+            TotalAcertos = g.Sum(x => x.QuestoesAcertos ?? 0)
+        }
+    ).ToListAsync();
+
+    var dict = agregados.ToDictionary(x => x.DisciplinaId);
+
+    var response = disciplinas.Select(d =>
+    {
+        if (!dict.TryGetValue(d.Id, out var a))
+        {
+            return new DashboardPorDisciplinaResponse(
+                d.Id,
+                d.Nome,
+                0,
+                0,
+                0,
+                0,
+                null
+            );
+        }
+
+        var totalMinutos = (int)Math.Round(a.TotalMinutos, 0);
+        double? taxa = a.TotalQuestoes > 0
+            ? Math.Round((double)a.TotalAcertos / a.TotalQuestoes * 100.0, 2)
+            : null;
+
+        return new DashboardPorDisciplinaResponse(
+            d.Id,
+            d.Nome,
+            a.TotalSessoes,
+            totalMinutos,
+            a.TotalQuestoes,
+            a.TotalAcertos,
+            taxa
+        );
+    });
+
+    return Results.Ok(response);
+})
+.WithOpenApi();
+#endregion
 #endregion
 
 

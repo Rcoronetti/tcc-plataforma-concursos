@@ -1,0 +1,241 @@
+﻿@page "/"
+@page "/dashboard"
+@rendermode InteractiveServer
+@using MudBlazor
+@using TccConcursos.Blazor.Server.Services
+@inject ConcursosApi Api
+@inject NavigationManager Nav
+
+<MudText Typo="Typo.h4" Class="mb-4">📊 Dashboard</MudText>
+
+@if (isLoading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <MudAlert Severity="Severity.Error">@loadError</MudAlert>
+}
+else
+{
+    <!-- Métricas Principais (KPIs) -->
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Total de Sessões</MudText>
+                        <MudText Typo="Typo.h4">@resumo?.TotalSessoes</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.EventNote" Color="Color.Primary" />
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Tempo Estudado</MudText>
+                        <MudText Typo="Typo.h4">@FormatarTempo(resumo?.TotalMinutosEstudados ?? 0)</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.AccessTime" Color="Color.Info" />
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Questões Resolvidas</MudText>
+                        <MudText Typo="Typo.h4">@resumo?.TotalQuestoes</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.Quiz" Color="Color.Warning" />
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Taxa de Acerto</MudText>
+                        <MudText Typo="Typo.h4" Color="@GetCorTaxaAcerto(resumo?.TaxaAcertoPercentual)">
+                            @FormatarTaxaAcerto(resumo?.TaxaAcertoPercentual)
+                        </MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" />
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Filtro por Concurso -->
+    <MudCard Elevation="2" Class="mb-4">
+        <MudCardContent>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText Typo="Typo.h6">Filtrar por Concurso</MudText>
+                <MudSelect T="Guid?" 
+                           @bind-Value="concursoSelecionado" 
+                           Label="Selecione um concurso"
+                           Variant="Variant.Outlined"
+                           Style="min-width: 300px;">
+                    <MudSelectItem T="Guid?" Value="@((Guid?)null)">Todos os concursos</MudSelectItem>
+                    @foreach (var c in concursos)
+                    {
+                        <MudSelectItem T="Guid?" Value="@c.Id">@c.Nome</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           OnClick="AplicarFiltroConcurso">
+                    Aplicar
+                </MudButton>
+            </MudStack>
+        </MudCardContent>
+    </MudCard>
+
+    @if (concursoFiltrado is not null && disciplinasPorConcurso.Count > 0)
+    {
+        <!-- Performance por Disciplina -->
+        <MudCard Elevation="2" Class="mb-4">
+            <MudCardHeader>
+                <MudText Typo="Typo.h6">📚 Performance por Disciplina — @concursoFiltrado.ConcursoNome</MudText>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudTable Items="disciplinasPorConcurso" 
+                          Dense="true" 
+                          Hover="true"
+                          Breakpoint="Breakpoint.Sm">
+                    <HeaderContent>
+                        <MudTh>Disciplina</MudTh>
+                        <MudTh>Sessões</MudTh>
+                        <MudTh>Tempo</MudTh>
+                        <MudTh>Questões</MudTh>
+                        <MudTh>Acertos</MudTh>
+                        <MudTh>Taxa</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Disciplina">
+                            <strong>@context.DisciplinaNome</strong>
+                        </MudTd>
+                        <MudTd DataLabel="Sessões">@context.TotalSessoes</MudTd>
+                        <MudTd DataLabel="Tempo">@FormatarTempo(context.TotalMinutosEstudados)</MudTd>
+                        <MudTd DataLabel="Questões">@context.TotalQuestoes</MudTd>
+                        <MudTd DataLabel="Acertos">@context.TotalAcertos</MudTd>
+                        <MudTd DataLabel="Taxa">
+                            <MudChip T="string"
+                                     Size="Size.Small"
+                                     Color="@GetCorChip(context.TaxaAcertoPercentual)">
+                                @FormatarTaxaAcerto(context.TaxaAcertoPercentual)
+                            </MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudCardContent>
+        </MudCard>
+    }
+
+    @if (concursoFiltrado is null && resumo?.TotalSessoes == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="mt-4">
+            <strong>Nenhuma sessão de estudo registrada ainda.</strong><br />
+            Comece criando um concurso, depois adicione disciplinas, tópicos e registre suas sessões de estudo!
+        </MudAlert>
+    }
+}
+
+@code {
+    private bool isLoading = true;
+    private string? loadError;
+
+    private ConcursosApi.DashboardResumoDto? resumo;
+    private ConcursosApi.DashboardPorConcursoDto? concursoFiltrado;
+    private List<ConcursosApi.DashboardPorDisciplinaDto> disciplinasPorConcurso = new();
+    
+    private List<ConcursosApi.ConcursoDto> concursos = new();
+    private Guid? concursoSelecionado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDados();
+    }
+
+    private async Task CarregarDados()
+    {
+        loadError = null;
+        isLoading = true;
+
+        try
+        {
+            // Carregar resumo geral
+            resumo = await Api.GetDashboardResumoAsync();
+            
+            // Carregar lista de concursos para o filtro
+            concursos = await Api.GetConcursosAsync();
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Erro ao carregar dados: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task AplicarFiltroConcurso()
+    {
+        if (concursoSelecionado is null)
+        {
+            concursoFiltrado = null;
+            disciplinasPorConcurso.Clear();
+            await CarregarDados();
+            return;
+        }
+
+        loadError = null;
+        isLoading = true;
+
+        try
+        {
+            concursoFiltrado = await Api.GetDashboardPorConcursoAsync(concursoSelecionado.Value);
+            disciplinasPorConcurso = await Api.GetDashboardDisciplinasPorConcursoAsync(concursoSelecionado.Value);
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Erro ao filtrar por concurso: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string FormatarTempo(int minutos)
+    {
+        var horas = minutos / 60;
+        var mins = minutos % 60;
+        return horas > 0 ? $"{horas}h {mins}min" : $"{mins}min";
+    }
+
+    private static string FormatarTaxaAcerto(double? taxa)
+        => taxa.HasValue ? $"{taxa.Value:F1}%" : "N/A";
+
+    private static Color GetCorTaxaAcerto(double? taxa)
+    {
+        if (!taxa.HasValue) return Color.Default;
+        return taxa.Value >= 70 ? Color.Success :
+               taxa.Value >= 50 ? Color.Warning :
+               Color.Error;
+    }
+
+    private static Color GetCorChip(double? taxa)
+    {
+        if (!taxa.HasValue) return Color.Default;
+        return taxa.Value >= 70 ? Color.Success :
+               taxa.Value >= 50 ? Color.Warning :
+               Color.Error;
+    }
+}
