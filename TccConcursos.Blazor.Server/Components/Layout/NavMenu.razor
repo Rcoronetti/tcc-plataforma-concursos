@@ -18,11 +18,11 @@
         <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas")"
                     Match="NavLinkMatch.Prefix"
                     Icon="@Icons.Material.Filled.School">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="nav-row">
                 <MudText>Disciplinas</MudText>
-                <MudText Typo="Typo.caption" Class="nav-context">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="nav-chip">
                     @NavCtx.ConcursoNome
-                </MudText>
+                </MudChip>
             </MudStack>
         </MudNavLink>
     }
@@ -32,11 +32,11 @@
         <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas/{NavCtx.DisciplinaId}/topicos")"
                     Match="NavLinkMatch.Prefix"
                     Icon="@Icons.Material.Filled.Bookmarks">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="nav-row">
                 <MudText>Tópicos</MudText>
-                <MudText Typo="Typo.caption" Class="nav-context">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="nav-chip">
                     @NavCtx.DisciplinaNome
-                </MudText>
+                </MudChip>
             </MudStack>
         </MudNavLink>
     }
@@ -46,11 +46,11 @@
         <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas/{NavCtx.DisciplinaId}/topicos/{NavCtx.TopicoId}/sessoes")"
                     Match="NavLinkMatch.Prefix"
                     Icon="@Icons.Material.Filled.Timer">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="nav-row">
                 <MudText>Sessões</MudText>
-                <MudText Typo="Typo.caption" Class="nav-context">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="nav-chip">
                     @NavCtx.TopicoNome
-                </MudText>
+                </MudChip>
             </MudStack>
         </MudNavLink>
     }
@@ -58,10 +58,41 @@
 </MudNavMenu>
 
 <style>
-    .nav-context {
-        opacity: .80;
-        margin-left: 4px;
+    .nav-row {
+        width: 100%;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
     }
+
+        .nav-row .mud-typography {
+            flex-shrink: 0;
+        }
+
+    .nav-chip {
+        border-color: rgba(255,255,255,.35) !important;
+        color: rgba(255,255,255,.92) !important;
+        background-color: rgba(255,255,255,.06) !important;
+        max-width: 999px;
+        min-width: 80px;
+        height: 22px;
+        display: inline-flex;
+        align-items: center;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+        .nav-chip .mud-chip-content {
+            display: inline-flex;
+            align-items: center;
+            line-height: 1;
+            padding-top: 0;
+            padding-bottom: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            width: 100%;
+        }
 </style>
 
 @code {
