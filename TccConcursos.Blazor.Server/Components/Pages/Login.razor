@@ -15,8 +15,8 @@
         </MudCardHeader>
         <MudCardContent>
             <MudStack Spacing="2">
-                <MudTextField @bind-Value="model.Usuario"
-                              Label="Usuário"
+                <MudTextField @bind-Value="model.Login"
+                              Label="E-mail ou CPF"
                               Variant="Variant.Outlined"
                               Required="true"
                               Immediate="true" />
@@ -39,13 +39,16 @@
                            FullWidth="true">
                     Entrar
                 </MudButton>
+
+                <MudDivider Class="my-2" />
+
+                <MudText Typo="Typo.body2" Align="Align.Center">
+                    Primeiro acesso?
+                    <MudLink Href="/cadastro">Criar cadastro básico</MudLink>
+                </MudText>
             </MudStack>
         </MudCardContent>
     </MudCard>
-
-    <MudText Typo="Typo.caption" Class="mt-2">
-        Dica para ambiente local: qualquer usuário e senha não vazios efetuam login.
-    </MudText>
 </MudContainer>
 
 @code {
@@ -56,9 +59,9 @@
     {
         erro = null;
 
-        if (!AuthProvider.Login(model.Usuario, model.Senha))
+        if (!AuthProvider.Login(model.Login, model.Senha))
         {
-            erro = "Informe usuário e senha para continuar.";
+            erro = "Credenciais inválidas. Faça seu cadastro se for o primeiro acesso.";
             return;
         }
 
@@ -67,7 +70,7 @@
 
     private sealed class LoginModel
     {
-        public string Usuario { get; set; } = string.Empty;
+        public string Login { get; set; } = string.Empty;
         public string Senha { get; set; } = string.Empty;
     }
 }
