@@ -14,6 +14,7 @@ namespace TccConcursos.Infrastructure.Data
         public DbSet<Disciplina> Disciplinas => Set<Disciplina>();
         public DbSet<Topico> Topicos => Set<Topico>();
         public DbSet<SessaoEstudo> SessoesEstudo => Set<SessaoEstudo>();
+        public DbSet<Usuario> Usuarios => Set<Usuario>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -94,6 +95,50 @@ namespace TccConcursos.Infrastructure.Data
 
                 // Índice útil para métricas por tópico e período
                 entity.HasIndex(x => new { x.TopicoId, x.Inicio });
+            });
+
+            // Usuario
+            modelBuilder.Entity<Usuario>(entity =>
+            {
+                entity.ToTable("usuarios");
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Nome)
+                    .IsRequired()
+                    .HasMaxLength(200);
+
+                entity.Property(x => x.Cpf)
+                    .IsRequired()
+                    .HasMaxLength(11);
+
+                entity.Property(x => x.Email)
+                    .IsRequired()
+                    .HasMaxLength(320);
+
+                entity.Property(x => x.Senha)
+                    .IsRequired()
+                    .HasMaxLength(255);
+
+                entity.Property(x => x.Endereco)
+                    .HasMaxLength(300);
+
+                entity.Property(x => x.Telefone)
+                    .HasMaxLength(20);
+
+                entity.Property(x => x.Bio)
+                    .HasMaxLength(1000);
+
+                entity.Property(x => x.FotoUrl)
+                    .HasMaxLength(500);
+
+                entity.Property(x => x.CriadoEmUtc)
+                    .IsRequired();
+
+                entity.Property(x => x.AtualizadoEmUtc)
+                    .IsRequired();
+
+                entity.HasIndex(x => x.Email).IsUnique();
+                entity.HasIndex(x => x.Cpf).IsUnique();
             });
         }
     }

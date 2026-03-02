@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components.Authorization;
 
 namespace TccConcursos.Blazor.Server.Services;
@@ -7,249 +6,126 @@ namespace TccConcursos.Blazor.Server.Services;
 public sealed class AppAuthenticationStateProvider : AuthenticationStateProvider
 {
     private static readonly AuthenticationState Anonymous = new(new ClaimsPrincipal(new ClaimsIdentity()));
-    private static readonly Dictionary<string, RegisteredUser> UsersByEmail = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly ConcursosApi _api;
     private AuthenticationState _currentState = Anonymous;
+    private Guid? _currentUserId;
+
+    public AppAuthenticationStateProvider(ConcursosApi api)
+    {
+        _api = api;
+    }
 
     public override Task<AuthenticationState> GetAuthenticationStateAsync()
         => Task.FromResult(_currentState);
 
-    public bool Login(string login, string password)
+    public async Task<(bool Success, string? Error)> LoginAsync(string login, string password)
     {
         if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
         {
-            return false;
+            return (false, "Informe login e senha.");
         }
 
-        var normalizedLogin = login.Trim();
-
-        var user = UsersByEmail.Values.FirstOrDefault(u =>
-            u.Email.Equals(normalizedLogin, StringComparison.OrdinalIgnoreCase) ||
-            u.Cpf.Equals(OnlyDigits(normalizedLogin), StringComparison.Ordinal));
-
-        if (user is null || !user.Password.Equals(password, StringComparison.Ordinal))
+        var result = await _api.LoginUsuarioAsync(new ConcursosApi.LoginUsuarioRequest(login, password));
+        if (!result.Success || result.Data is null)
         {
-            return false;
+            return (false, result.ErrorMessage ?? "Credenciais inválidas. Faça seu cadastro se for o primeiro acesso.");
         }
 
-        var identity = new ClaimsIdentity(
-        [
-            new Claim(ClaimTypes.Name, user.Name),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim("cpf", user.Cpf),
-            new Claim(ClaimTypes.Role, "Concurseiro")
-        ],
-        authenticationType: "AppAuth");
-
-        _currentState = new AuthenticationState(new ClaimsPrincipal(identity));
-        NotifyAuthenticationStateChanged(Task.FromResult(_currentState));
-        return true;
+        SetAuthenticatedState(result.Data);
+        return (true, null);
     }
 
-    public bool Register(string name, string cpf, string email, string password, out string? error)
+    public async Task<(bool Success, string? Error)> RegisterAsync(string name, string cpf, string email, string password)
     {
-        error = null;
-
-        var normalizedName = name.Trim();
-        var normalizedCpf = OnlyDigits(cpf);
-        var normalizedEmail = email.Trim();
-
-        if (string.IsNullOrWhiteSpace(normalizedName))
-        {
-            error = "Informe o nome completo.";
-            return false;
-        }
-
-        if (!IsValidCpf(normalizedCpf))
-        {
-            error = "CPF inválido.";
-            return false;
-        }
-
-        if (!IsValidEmail(normalizedEmail))
-        {
-            error = "E-mail inválido.";
-            return false;
-        }
-
-        if (!IsStrongPassword(password))
-        {
-            error = "A senha deve ter no mínimo 8 caracteres, com maiúscula, minúscula, número e símbolo.";
-            return false;
-        }
-
-        if (UsersByEmail.ContainsKey(normalizedEmail))
-        {
-            error = "Já existe cadastro com este e-mail.";
-            return false;
-        }
-
-        if (UsersByEmail.Values.Any(u => u.Cpf.Equals(normalizedCpf, StringComparison.Ordinal)))
-        {
-            error = "Já existe cadastro com este CPF.";
-            return false;
-        }
-
-        UsersByEmail[normalizedEmail] = new RegisteredUser
-        {
-            Name = normalizedName,
-            Cpf = normalizedCpf,
-            Email = normalizedEmail,
-            Password = password,
-            Address = string.Empty,
-            Phone = string.Empty,
-            Bio = string.Empty,
-            PhotoUrl = string.Empty
-        };
-        return true;
+        var result = await _api.RegisterUsuarioAsync(new ConcursosApi.RegisterUsuarioRequest(name, cpf, email, password));
+        return result.Success
+            ? (true, null)
+            : (false, result.ErrorMessage ?? "Não foi possível concluir o cadastro.");
     }
 
-    public UserProfile? GetCurrentUserProfile()
+    public async Task<UserProfile?> GetCurrentUserProfileAsync()
     {
-        var user = GetCurrentUser();
-        if (user is null)
+        if (_currentUserId is null)
+        {
+            return null;
+        }
+
+        var profile = await _api.GetUsuarioProfileAsync(_currentUserId.Value);
+        if (profile is null)
         {
             return null;
         }
 
         return new UserProfile(
-            user.Name,
-            user.Email,
-            user.Cpf,
-            user.Address,
-            user.Phone,
-            user.Bio,
-            user.PhotoUrl);
+            profile.Id,
+            profile.Nome,
+            profile.Email,
+            profile.Cpf,
+            profile.Endereco,
+            profile.Telefone,
+            profile.Bio,
+            profile.FotoUrl);
     }
 
-    public bool UpdateCurrentUserProfile(UserProfile profile, out string? error)
+    public async Task<(bool Success, string? Error)> UpdateCurrentUserProfileAsync(UserProfile profile)
     {
-        error = null;
-        var user = GetCurrentUser();
-
-        if (user is null)
+        if (_currentUserId is null)
         {
-            error = "Usuário não autenticado.";
-            return false;
+            return (false, "Usuário não autenticado.");
         }
 
-        var normalizedName = profile.Name.Trim();
-        if (string.IsNullOrWhiteSpace(normalizedName))
+        var result = await _api.UpdateUsuarioProfileAsync(
+            _currentUserId.Value,
+            new ConcursosApi.UpdateUsuarioProfileRequest(
+                profile.Name,
+                profile.Address,
+                profile.Phone,
+                profile.Bio,
+                profile.PhotoUrl));
+
+        if (!result.Success || result.Data is null)
         {
-            error = "Informe o nome completo.";
-            return false;
+            return (false, result.ErrorMessage ?? "Não foi possível atualizar o perfil.");
         }
 
-        user.Name = normalizedName;
-        user.Address = profile.Address.Trim();
-        user.Phone = profile.Phone.Trim();
-        user.Bio = profile.Bio.Trim();
-        user.PhotoUrl = profile.PhotoUrl.Trim();
-
-        RefreshLoggedUserClaims(user);
-        return true;
+        SetAuthenticatedState(result.Data);
+        return (true, null);
     }
 
-    public bool ChangeCurrentUserPassword(string currentPassword, string newPassword, out string? error)
+    public async Task<(bool Success, string? Error)> ChangeCurrentUserPasswordAsync(string currentPassword, string newPassword)
     {
-        error = null;
-        var user = GetCurrentUser();
-
-        if (user is null)
+        if (_currentUserId is null)
         {
-            error = "Usuário não autenticado.";
-            return false;
+            return (false, "Usuário não autenticado.");
         }
 
-        if (!user.Password.Equals(currentPassword, StringComparison.Ordinal))
-        {
-            error = "A senha atual está incorreta.";
-            return false;
-        }
+        var result = await _api.ChangeUsuarioPasswordAsync(
+            _currentUserId.Value,
+            new ConcursosApi.ChangeUsuarioPasswordRequest(currentPassword, newPassword));
 
-        if (!IsStrongPassword(newPassword))
-        {
-            error = "A nova senha deve ter no mínimo 8 caracteres, com maiúscula, minúscula, número e símbolo.";
-            return false;
-        }
-
-        if (newPassword.Equals(currentPassword, StringComparison.Ordinal))
-        {
-            error = "A nova senha deve ser diferente da senha atual.";
-            return false;
-        }
-
-        user.Password = newPassword;
-        return true;
+        return result.Success
+            ? (true, null)
+            : (false, result.ErrorMessage ?? "Não foi possível alterar a senha.");
     }
 
     public void Logout()
     {
+        _currentUserId = null;
         _currentState = Anonymous;
         NotifyAuthenticationStateChanged(Task.FromResult(_currentState));
     }
 
-    private static bool IsValidEmail(string email)
-        => Regex.IsMatch(email, "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", RegexOptions.CultureInvariant);
-
-    private static bool IsStrongPassword(string password)
-        => password.Length >= 8
-           && password.Any(char.IsUpper)
-           && password.Any(char.IsLower)
-           && password.Any(char.IsDigit)
-           && password.Any(ch => !char.IsLetterOrDigit(ch));
-
-    private static string OnlyDigits(string value)
-        => new(value.Where(char.IsDigit).ToArray());
-
-    private static bool IsValidCpf(string cpf)
+    private void SetAuthenticatedState(ConcursosApi.UsuarioProfileDto user)
     {
-        if (cpf.Length != 11 || cpf.Distinct().Count() == 1)
-        {
-            return false;
-        }
+        _currentUserId = user.Id;
 
-        var numbers = cpf.Select(c => c - '0').ToArray();
-
-        var firstDigit = CalculateCpfDigit(numbers, 9, 10);
-        if (numbers[9] != firstDigit)
-        {
-            return false;
-        }
-
-        var secondDigit = CalculateCpfDigit(numbers, 10, 11);
-        return numbers[10] == secondDigit;
-    }
-
-    private static int CalculateCpfDigit(int[] numbers, int length, int weightStart)
-    {
-        var sum = 0;
-        for (var i = 0; i < length; i++)
-        {
-            sum += numbers[i] * (weightStart - i);
-        }
-
-        var remainder = sum % 11;
-        return remainder < 2 ? 0 : 11 - remainder;
-    }
-
-    private RegisteredUser? GetCurrentUser()
-    {
-        var email = _currentState.User.FindFirstValue(ClaimTypes.Email);
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return null;
-        }
-
-        return UsersByEmail.TryGetValue(email, out var user) ? user : null;
-    }
-
-    private void RefreshLoggedUserClaims(RegisteredUser user)
-    {
         var identity = new ClaimsIdentity(
         [
-            new Claim(ClaimTypes.Name, user.Name),
+            new Claim(ClaimTypes.Name, user.Nome),
             new Claim(ClaimTypes.Email, user.Email),
             new Claim("cpf", user.Cpf),
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Role, "Concurseiro")
         ],
         authenticationType: "AppAuth");
@@ -259,6 +135,7 @@ public sealed class AppAuthenticationStateProvider : AuthenticationStateProvider
     }
 
     public sealed record UserProfile(
+        Guid Id,
         string Name,
         string Email,
         string Cpf,
@@ -267,6 +144,7 @@ public sealed class AppAuthenticationStateProvider : AuthenticationStateProvider
         string Bio,
         string PhotoUrl)
     {
+        public Guid Id { get; set; } = Id;
         public string Name { get; set; } = Name;
         public string Email { get; set; } = Email;
         public string Cpf { get; set; } = Cpf;
@@ -274,17 +152,5 @@ public sealed class AppAuthenticationStateProvider : AuthenticationStateProvider
         public string Phone { get; set; } = Phone;
         public string Bio { get; set; } = Bio;
         public string PhotoUrl { get; set; } = PhotoUrl;
-    }
-
-    private sealed class RegisteredUser
-    {
-        public required string Name { get; set; }
-        public required string Cpf { get; set; }
-        public required string Email { get; set; }
-        public required string Password { get; set; }
-        public string Address { get; set; } = string.Empty;
-        public string Phone { get; set; } = string.Empty;
-        public string Bio { get; set; } = string.Empty;
-        public string PhotoUrl { get; set; } = string.Empty;
     }
 }

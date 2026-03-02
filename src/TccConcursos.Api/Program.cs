@@ -4,6 +4,7 @@ using TccConcursos.Api.Contracts.Dashboard;
 using TccConcursos.Api.Contracts.Disciplinas;
 using TccConcursos.Api.Contracts.SessoesEstudo;
 using TccConcursos.Api.Contracts.Topicos;
+using TccConcursos.Api.Contracts.Usuarios;
 using TccConcursos.Domain.Entities;
 using TccConcursos.Infrastructure.Data;
 
@@ -38,16 +39,147 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+#region Usuarios
+var usuarios = app.MapGroup("/usuarios").WithTags("Usuarios");
+
+usuarios.MapPost("/cadastro", async (RegisterUsuarioRequest request, ApplicationDbContext db) =>
+{
+    var nome = request.Nome.Trim();
+    var cpf = new string(request.Cpf.Where(char.IsDigit).ToArray());
+    var email = request.Email.Trim();
+
+    if (string.IsNullOrWhiteSpace(nome))
+        return Results.BadRequest("Informe o nome completo.");
+
+    if (cpf.Length != 11)
+        return Results.BadRequest("CPF invlido.");
+
+    if (string.IsNullOrWhiteSpace(email) || !System.Text.RegularExpressions.Regex.IsMatch(email, @"^[^\s@]+@[^\s@]+\.[^\s@]+$", System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+        return Results.BadRequest("E-mail invlido.");
+
+    if (request.Senha.Length < 8
+        || !request.Senha.Any(char.IsUpper)
+        || !request.Senha.Any(char.IsLower)
+        || !request.Senha.Any(char.IsDigit)
+        || !request.Senha.Any(ch => !char.IsLetterOrDigit(ch)))
+        return Results.BadRequest("A senha deve ter no mnimo 8 caracteres, com maiscula, minscula, nmero e smbolo.");
+
+    if (await db.Usuarios.AnyAsync(x => x.Email.ToLower() == email.ToLower()))
+        return Results.Conflict("J existe cadastro com este e-mail.");
+
+    if (await db.Usuarios.AnyAsync(x => x.Cpf == cpf))
+        return Results.Conflict("J existe cadastro com este CPF.");
+
+    var usuario = new Usuario
+    {
+        Nome = nome,
+        Cpf = cpf,
+        Email = email,
+        Senha = request.Senha,
+        Endereco = string.Empty,
+        Telefone = string.Empty,
+        Bio = string.Empty,
+        FotoUrl = string.Empty,
+        CriadoEmUtc = DateTime.UtcNow,
+        AtualizadoEmUtc = DateTime.UtcNow
+    };
+
+    db.Usuarios.Add(usuario);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/usuarios/{usuario.Id}", new UsuarioProfileResponse(usuario.Id, usuario.Nome, usuario.Email, usuario.Cpf, usuario.Endereco, usuario.Telefone, usuario.Bio, usuario.FotoUrl));
+})
+.WithOpenApi();
+
+usuarios.MapPost("/login", async (LoginUsuarioRequest request, ApplicationDbContext db) =>
+{
+    var login = request.Login.Trim();
+    var cpfDigits = new string(login.Where(char.IsDigit).ToArray());
+
+    var usuario = await db.Usuarios
+        .AsNoTracking()
+        .FirstOrDefaultAsync(x => x.Email.ToLower() == login.ToLower() || x.Cpf == cpfDigits);
+
+    if (usuario is null || !usuario.Senha.Equals(request.Senha, StringComparison.Ordinal))
+        return Results.Unauthorized();
+
+    return Results.Ok(new UsuarioProfileResponse(usuario.Id, usuario.Nome, usuario.Email, usuario.Cpf, usuario.Endereco, usuario.Telefone, usuario.Bio, usuario.FotoUrl));
+})
+.WithOpenApi();
+
+usuarios.MapGet("/{id:guid}/perfil", async (Guid id, ApplicationDbContext db) =>
+{
+    var usuario = await db.Usuarios
+        .AsNoTracking()
+        .Where(x => x.Id == id)
+        .Select(x => new UsuarioProfileResponse(x.Id, x.Nome, x.Email, x.Cpf, x.Endereco, x.Telefone, x.Bio, x.FotoUrl))
+        .FirstOrDefaultAsync();
+
+    return usuario is null ? Results.NotFound() : Results.Ok(usuario);
+})
+.WithOpenApi();
+
+usuarios.MapPut("/{id:guid}/perfil", async (Guid id, UpdateUsuarioProfileRequest request, ApplicationDbContext db) =>
+{
+    var usuario = await db.Usuarios.FirstOrDefaultAsync(x => x.Id == id);
+    if (usuario is null)
+        return Results.NotFound();
+
+    var nome = request.Nome.Trim();
+    if (string.IsNullOrWhiteSpace(nome))
+        return Results.BadRequest("Informe o nome completo.");
+
+    usuario.Nome = nome;
+    usuario.Endereco = request.Endereco.Trim();
+    usuario.Telefone = request.Telefone.Trim();
+    usuario.Bio = request.Bio.Trim();
+    usuario.FotoUrl = request.FotoUrl.Trim();
+    usuario.AtualizadoEmUtc = DateTime.UtcNow;
+
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new UsuarioProfileResponse(usuario.Id, usuario.Nome, usuario.Email, usuario.Cpf, usuario.Endereco, usuario.Telefone, usuario.Bio, usuario.FotoUrl));
+})
+.WithOpenApi();
+
+usuarios.MapPut("/{id:guid}/senha", async (Guid id, ChangeUsuarioPasswordRequest request, ApplicationDbContext db) =>
+{
+    var usuario = await db.Usuarios.FirstOrDefaultAsync(x => x.Id == id);
+    if (usuario is null)
+        return Results.NotFound();
+
+    if (!usuario.Senha.Equals(request.SenhaAtual, StringComparison.Ordinal))
+        return Results.BadRequest("A senha atual est incorreta.");
+
+    if (request.NovaSenha.Length < 8
+        || !request.NovaSenha.Any(char.IsUpper)
+        || !request.NovaSenha.Any(char.IsLower)
+        || !request.NovaSenha.Any(char.IsDigit)
+        || !request.NovaSenha.Any(ch => !char.IsLetterOrDigit(ch)))
+        return Results.BadRequest("A nova senha deve ter no mnimo 8 caracteres, com maiscula, minscula, nmero e smbolo.");
+
+    if (request.NovaSenha.Equals(request.SenhaAtual, StringComparison.Ordinal))
+        return Results.BadRequest("A nova senha deve ser diferente da senha atual.");
+
+    usuario.Senha = request.NovaSenha;
+    usuario.AtualizadoEmUtc = DateTime.UtcNow;
+
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+})
+.WithOpenApi();
+#endregion
+
 # region Consursos
 var concursos = app.MapGroup("/concursos").WithTags("Concursos");
 
 concursos.MapPost("/", async (CreateConcursoRequest request, ApplicationDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Nome))
-        return Results.BadRequest("Nome È obrigatÛrio.");
+        return Results.BadRequest("Nome √© obrigat√≥rio.");
 
     if (request.Nome.Length > 200)
-        return Results.BadRequest("Nome deve ter no m·ximo 200 caracteres.");
+        return Results.BadRequest("Nome deve ter no m√°ximo 200 caracteres.");
 
     var entity = new Concurso
     {
@@ -90,10 +222,10 @@ concursos.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
 concursos.MapPut("/{id:guid}", async (Guid id, UpdateConcursoRequest request, ApplicationDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Nome))
-        return Results.BadRequest("Nome È obrigatÛrio.");
+        return Results.BadRequest("Nome √© obrigat√≥rio.");
 
     if (request.Nome.Length > 200)
-        return Results.BadRequest("Nome deve ter no m·ximo 200 caracteres.");
+        return Results.BadRequest("Nome deve ter no m√°ximo 200 caracteres.");
 
     var entity = await db.Concursos.FirstOrDefaultAsync(x => x.Id == id);
     if (entity is null)
@@ -130,19 +262,19 @@ var disciplinas = app.MapGroup("/concursos/{concursoId:guid}/disciplinas")
 disciplinas.MapPost("/", async (Guid concursoId, CreateDisciplinaRequest request, ApplicationDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Nome))
-        return Results.BadRequest("Nome È obrigatÛrio.");
+        return Results.BadRequest("Nome √© obrigat√≥rio.");
 
     if (request.Nome.Length > 200)
-        return Results.BadRequest("Nome deve ter no m·ximo 200 caracteres.");
+        return Results.BadRequest("Nome deve ter no m√°ximo 200 caracteres.");
 
     var concursoExiste = await db.Concursos.AnyAsync(x => x.Id == concursoId);
     if (!concursoExiste)
-        return Results.NotFound("Concurso n„o encontrado.");
+        return Results.NotFound("Concurso n√£o encontrado.");
 
     var jaExiste = await db.Disciplinas
     .AnyAsync(x => x.ConcursoId == concursoId && x.Nome.ToLower() == request.Nome.ToLower());
     if (jaExiste)
-        return Results.Conflict("J· existe uma disciplina com este nome neste concurso.");
+        return Results.Conflict("J√° existe uma disciplina com este nome neste concurso.");
 
     var entity = new Disciplina
     {
@@ -162,7 +294,7 @@ disciplinas.MapGet("/", async (Guid concursoId, ApplicationDbContext db) =>
 {
     var concursoExiste = await db.Concursos.AnyAsync(x => x.Id == concursoId);
     if (!concursoExiste)
-        return Results.NotFound("Concurso n„o encontrado.");
+        return Results.NotFound("Concurso n√£o encontrado.");
 
     var list = await db.Disciplinas
         .AsNoTracking()
@@ -190,10 +322,10 @@ disciplinas.MapGet("/{disciplinaId:guid}", async (Guid concursoId, Guid discipli
 disciplinas.MapPut("/{disciplinaId:guid}", async (Guid concursoId, Guid disciplinaId, UpdateDisciplinaRequest request, ApplicationDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Nome))
-        return Results.BadRequest("Nome È obrigatÛrio.");
+        return Results.BadRequest("Nome √© obrigat√≥rio.");
 
     if (request.Nome.Length > 200)
-        return Results.BadRequest("Nome deve ter no m·ximo 200 caracteres.");
+        return Results.BadRequest("Nome deve ter no m√°ximo 200 caracteres.");
 
     var entity = await db.Disciplinas
         .FirstOrDefaultAsync(x => x.ConcursoId == concursoId && x.Id == disciplinaId);
@@ -232,14 +364,14 @@ var topicos = app.MapGroup("/disciplinas/{disciplinaId:guid}/topicos")
 topicos.MapPost("/", async (Guid disciplinaId, CreateTopicoRequest request, ApplicationDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Nome))
-        return Results.BadRequest("Nome È obrigatÛrio.");
+        return Results.BadRequest("Nome √© obrigat√≥rio.");
 
     if (request.Nome.Length > 200)
-        return Results.BadRequest("Nome deve ter no m·ximo 200 caracteres.");
+        return Results.BadRequest("Nome deve ter no m√°ximo 200 caracteres.");
 
     var disciplinaExiste = await db.Disciplinas.AnyAsync(x => x.Id == disciplinaId);
     if (!disciplinaExiste)
-        return Results.NotFound("Disciplina n„o encontrada.");
+        return Results.NotFound("Disciplina n√£o encontrada.");
 
     var nomeNormalizado = request.Nome.Trim().ToLower();
 
@@ -247,7 +379,7 @@ topicos.MapPost("/", async (Guid disciplinaId, CreateTopicoRequest request, Appl
         .AnyAsync(x => x.DisciplinaId == disciplinaId && x.Nome.ToLower() == nomeNormalizado);
 
     if (jaExiste)
-        return Results.Conflict("J· existe um tÛpico com este nome nesta disciplina.");
+        return Results.Conflict("J√° existe um t√≥pico com este nome nesta disciplina.");
 
     var entity = new Topico
     {
@@ -268,7 +400,7 @@ topicos.MapGet("/", async (Guid disciplinaId, ApplicationDbContext db) =>
 {
     var disciplinaExiste = await db.Disciplinas.AnyAsync(x => x.Id == disciplinaId);
     if (!disciplinaExiste)
-        return Results.NotFound("Disciplina n„o encontrada.");
+        return Results.NotFound("Disciplina n√£o encontrada.");
 
     var list = await db.Topicos
         .AsNoTracking()
@@ -296,10 +428,10 @@ topicos.MapGet("/{topicoId:guid}", async (Guid disciplinaId, Guid topicoId, Appl
 topicos.MapPut("/{topicoId:guid}", async (Guid disciplinaId, Guid topicoId, UpdateTopicoRequest request, ApplicationDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Nome))
-        return Results.BadRequest("Nome È obrigatÛrio.");
+        return Results.BadRequest("Nome √© obrigat√≥rio.");
 
     if (request.Nome.Length > 200)
-        return Results.BadRequest("Nome deve ter no m·ximo 200 caracteres.");
+        return Results.BadRequest("Nome deve ter no m√°ximo 200 caracteres.");
 
     var entity = await db.Topicos
         .FirstOrDefaultAsync(x => x.DisciplinaId == disciplinaId && x.Id == topicoId);
@@ -315,7 +447,7 @@ topicos.MapPut("/{topicoId:guid}", async (Guid disciplinaId, Guid topicoId, Upda
         x.Nome.ToLower() == nomeNormalizado);
 
     if (jaExiste)
-        return Results.Conflict("J· existe um tÛpico com este nome nesta disciplina.");
+        return Results.Conflict("J√° existe um t√≥pico com este nome nesta disciplina.");
 
     entity.Nome = request.Nome.Trim();
     await db.SaveChangesAsync();
@@ -341,37 +473,37 @@ topicos.MapDelete("/{topicoId:guid}", async (Guid disciplinaId, Guid topicoId, A
 .WithOpenApi();
 #endregion
 
-#region Sessıes de Estudo
+#region Sess√µes de Estudo
 var sessoes = app.MapGroup("/topicos/{topicoId:guid}/sessoes")
     .WithTags("SessoesEstudo");
 
 sessoes.MapPost("/", async (Guid topicoId, CreateSessaoEstudoRequest request, ApplicationDbContext db) =>
 {
     if (request.Fim <= request.Inicio)
-        return Results.BadRequest("Fim deve ser maior que InÌcio.");
+        return Results.BadRequest("Fim deve ser maior que In√≠cio.");
 
     var duracao = request.Fim - request.Inicio;
     if (duracao.TotalHours > 24)
-        return Results.BadRequest("DuraÁ„o da sess„o n„o pode exceder 24 horas.");
+        return Results.BadRequest("Dura√ß√£o da sess√£o n√£o pode exceder 24 horas.");
 
     var topicoExiste = await db.Topicos.AnyAsync(x => x.Id == topicoId);
     if (!topicoExiste)
-        return Results.NotFound("TÛpico n„o encontrado.");
+        return Results.NotFound("T√≥pico n√£o encontrado.");
 
     // Tipo: 1=Teoria, 2=Revisao, 3=Questoes
     if (request.Tipo is < 1 or > 3)
-        return Results.BadRequest("Tipo inv·lido. Use 1=Teoria, 2=Revis„o, 3=Questıes.");
+        return Results.BadRequest("Tipo inv√°lido. Use 1=Teoria, 2=Revis√£o, 3=Quest√µes.");
 
     if (request.Tipo == 3)
     {
         if (request.QuestoesTotal is null or <= 0)
-            return Results.BadRequest("QuestoesTotal È obrigatÛrio e deve ser > 0 quando Tipo=Questıes.");
+            return Results.BadRequest("QuestoesTotal √© obrigat√≥rio e deve ser > 0 quando Tipo=Quest√µes.");
 
         if (request.QuestoesAcertos is null or < 0)
-            return Results.BadRequest("QuestoesAcertos È obrigatÛrio e deve ser >= 0 quando Tipo=Questıes.");
+            return Results.BadRequest("QuestoesAcertos √© obrigat√≥rio e deve ser >= 0 quando Tipo=Quest√µes.");
 
         if (request.QuestoesAcertos > request.QuestoesTotal)
-            return Results.BadRequest("QuestoesAcertos n„o pode ser maior que QuestoesTotal.");
+            return Results.BadRequest("QuestoesAcertos n√£o pode ser maior que QuestoesTotal.");
     }
     else
     {
@@ -383,7 +515,7 @@ sessoes.MapPost("/", async (Guid topicoId, CreateSessaoEstudoRequest request, Ap
 
         if (request.QuestoesTotal is not null && request.QuestoesAcertos is not null &&
             request.QuestoesAcertos > request.QuestoesTotal)
-            return Results.BadRequest("QuestoesAcertos n„o pode ser maior que QuestoesTotal.");
+            return Results.BadRequest("QuestoesAcertos n√£o pode ser maior que QuestoesTotal.");
     }
 
     var entity = new SessaoEstudo
@@ -411,7 +543,7 @@ sessoes.MapGet("/", async (Guid topicoId, ApplicationDbContext db) =>
 {
     var topicoExiste = await db.Topicos.AnyAsync(x => x.Id == topicoId);
     if (!topicoExiste)
-        return Results.NotFound("TÛpico n„o encontrado.");
+        return Results.NotFound("T√≥pico n√£o encontrado.");
 
     var list = await db.SessoesEstudo
         .AsNoTracking()
@@ -443,25 +575,25 @@ sessoes.MapGet("/{sessaoId:guid}", async (Guid topicoId, Guid sessaoId, Applicat
 sessoes.MapPut("/{sessaoId:guid}", async (Guid topicoId, Guid sessaoId, UpdateSessaoEstudoRequest request, ApplicationDbContext db) =>
 {
     if (request.Fim <= request.Inicio)
-        return Results.BadRequest("Fim deve ser maior que InÌcio.");
+        return Results.BadRequest("Fim deve ser maior que In√≠cio.");
 
     var duracao = request.Fim - request.Inicio;
     if (duracao.TotalHours > 24)
-        return Results.BadRequest("DuraÁ„o da sess„o n„o pode exceder 24 horas.");
+        return Results.BadRequest("Dura√ß√£o da sess√£o n√£o pode exceder 24 horas.");
 
     if (request.Tipo is < 1 or > 3)
-        return Results.BadRequest("Tipo inv·lido. Use 1=Teoria, 2=Revis„o, 3=Questıes.");
+        return Results.BadRequest("Tipo inv√°lido. Use 1=Teoria, 2=Revis√£o, 3=Quest√µes.");
 
     if (request.Tipo == 3)
     {
         if (request.QuestoesTotal is null or <= 0)
-            return Results.BadRequest("QuestoesTotal È obrigatÛrio e deve ser > 0 quando Tipo=Questıes.");
+            return Results.BadRequest("QuestoesTotal √© obrigat√≥rio e deve ser > 0 quando Tipo=Quest√µes.");
 
         if (request.QuestoesAcertos is null or < 0)
-            return Results.BadRequest("QuestoesAcertos È obrigatÛrio e deve ser >= 0 quando Tipo=Questıes.");
+            return Results.BadRequest("QuestoesAcertos √© obrigat√≥rio e deve ser >= 0 quando Tipo=Quest√µes.");
 
         if (request.QuestoesAcertos > request.QuestoesTotal)
-            return Results.BadRequest("QuestoesAcertos n„o pode ser maior que QuestoesTotal.");
+            return Results.BadRequest("QuestoesAcertos n√£o pode ser maior que QuestoesTotal.");
     }
     else
     {
@@ -473,7 +605,7 @@ sessoes.MapPut("/{sessaoId:guid}", async (Guid topicoId, Guid sessaoId, UpdateSe
 
         if (request.QuestoesTotal is not null && request.QuestoesAcertos is not null &&
             request.QuestoesAcertos > request.QuestoesTotal)
-            return Results.BadRequest("QuestoesAcertos n„o pode ser maior que QuestoesTotal.");
+            return Results.BadRequest("QuestoesAcertos n√£o pode ser maior que QuestoesTotal.");
     }
 
     var entity = await db.SessoesEstudo
@@ -698,12 +830,12 @@ dashboard.MapGet("/por-topico", async (Guid disciplinaId, DateOnly? dataInicio, 
     // valida disciplina
     var disciplinaExiste = await db.Disciplinas.AnyAsync(x => x.Id == disciplinaId);
     if (!disciplinaExiste)
-        return Results.NotFound("Disciplina n„o encontrada.");
+        return Results.NotFound("Disciplina n√£o encontrada.");
 
     DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
     DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
 
-    // Base: todos os tÛpicos da disciplina (para incluir zeros)
+    // Base: todos os t√≥picos da disciplina (para incluir zeros)
     var topicos = await db.Topicos
         .AsNoTracking()
         .Where(x => x.DisciplinaId == disciplinaId)
@@ -711,7 +843,7 @@ dashboard.MapGet("/por-topico", async (Guid disciplinaId, DateOnly? dataInicio, 
         .Select(x => new { x.Id, x.DisciplinaId, x.Nome })
         .ToListAsync();
 
-    // Sessıes filtradas por perÌodo
+    // Sess√µes filtradas por per√≠odo
     var sessoesQuery = db.SessoesEstudo.AsNoTracking().AsQueryable();
 
     if (inicio.HasValue)
@@ -720,7 +852,7 @@ dashboard.MapGet("/por-topico", async (Guid disciplinaId, DateOnly? dataInicio, 
     if (fim.HasValue)
         sessoesQuery = sessoesQuery.Where(x => x.Inicio <= fim.Value);
 
-    // Agrega sessıes por tÛpico (somente tÛpicos com sess„o)
+    // Agrega sess√µes por t√≥pico (somente t√≥picos com sess√£o)
     var agregados = await (
         from s in sessoesQuery
         join t in db.Topicos.AsNoTracking() on s.TopicoId equals t.Id
@@ -786,7 +918,7 @@ dashboard.MapGet("/por-concurso/{concursoId:guid}", async (Guid concursoId, Date
         .FirstOrDefaultAsync(x => x.Id == concursoId);
 
     if (concurso is null)
-        return Results.NotFound("Concurso n„o encontrado.");
+        return Results.NotFound("Concurso n√£o encontrado.");
 
     DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
     DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
@@ -851,7 +983,7 @@ dashboard.MapGet("/por-concurso/{concursoId:guid}/disciplinas", async (Guid conc
     // Valida se concurso existe
     var concursoExiste = await db.Concursos.AnyAsync(x => x.Id == concursoId);
     if (!concursoExiste)
-        return Results.NotFound("Concurso n„o encontrado.");
+        return Results.NotFound("Concurso n√£o encontrado.");
 
     DateTime? inicio = dataInicio?.ToDateTime(TimeOnly.MinValue);
     DateTime? fim = dataFim?.ToDateTime(TimeOnly.MaxValue);
