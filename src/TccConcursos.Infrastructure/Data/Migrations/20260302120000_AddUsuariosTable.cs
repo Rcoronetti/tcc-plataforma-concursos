@@ -1,10 +1,14 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using TccConcursos.Infrastructure.Data;
 
 #nullable disable
 
 namespace TccConcursos.Infrastructure.Data.Migrations
 {
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20260302120000_AddUsuariosTable")]
     public partial class AddUsuariosTable : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
