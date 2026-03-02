@@ -89,7 +89,96 @@ public sealed class AppAuthenticationStateProvider : AuthenticationStateProvider
             return false;
         }
 
-        UsersByEmail[normalizedEmail] = new RegisteredUser(normalizedName, normalizedCpf, normalizedEmail, password);
+        UsersByEmail[normalizedEmail] = new RegisteredUser
+        {
+            Name = normalizedName,
+            Cpf = normalizedCpf,
+            Email = normalizedEmail,
+            Password = password,
+            Address = string.Empty,
+            Phone = string.Empty,
+            Bio = string.Empty,
+            PhotoUrl = string.Empty
+        };
+        return true;
+    }
+
+    public UserProfile? GetCurrentUserProfile()
+    {
+        var user = GetCurrentUser();
+        if (user is null)
+        {
+            return null;
+        }
+
+        return new UserProfile(
+            user.Name,
+            user.Email,
+            user.Cpf,
+            user.Address,
+            user.Phone,
+            user.Bio,
+            user.PhotoUrl);
+    }
+
+    public bool UpdateCurrentUserProfile(UserProfile profile, out string? error)
+    {
+        error = null;
+        var user = GetCurrentUser();
+
+        if (user is null)
+        {
+            error = "Usuário não autenticado.";
+            return false;
+        }
+
+        var normalizedName = profile.Name.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            error = "Informe o nome completo.";
+            return false;
+        }
+
+        user.Name = normalizedName;
+        user.Address = profile.Address.Trim();
+        user.Phone = profile.Phone.Trim();
+        user.Bio = profile.Bio.Trim();
+        user.PhotoUrl = profile.PhotoUrl.Trim();
+
+        RefreshLoggedUserClaims(user);
+        return true;
+    }
+
+    public bool ChangeCurrentUserPassword(string currentPassword, string newPassword, out string? error)
+    {
+        error = null;
+        var user = GetCurrentUser();
+
+        if (user is null)
+        {
+            error = "Usuário não autenticado.";
+            return false;
+        }
+
+        if (!user.Password.Equals(currentPassword, StringComparison.Ordinal))
+        {
+            error = "A senha atual está incorreta.";
+            return false;
+        }
+
+        if (!IsStrongPassword(newPassword))
+        {
+            error = "A nova senha deve ter no mínimo 8 caracteres, com maiúscula, minúscula, número e símbolo.";
+            return false;
+        }
+
+        if (newPassword.Equals(currentPassword, StringComparison.Ordinal))
+        {
+            error = "A nova senha deve ser diferente da senha atual.";
+            return false;
+        }
+
+        user.Password = newPassword;
         return true;
     }
 
@@ -143,5 +232,50 @@ public sealed class AppAuthenticationStateProvider : AuthenticationStateProvider
         return remainder < 2 ? 0 : 11 - remainder;
     }
 
-    private sealed record RegisteredUser(string Name, string Cpf, string Email, string Password);
+    private RegisteredUser? GetCurrentUser()
+    {
+        var email = _currentState.User.FindFirstValue(ClaimTypes.Email);
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+
+        return UsersByEmail.TryGetValue(email, out var user) ? user : null;
+    }
+
+    private void RefreshLoggedUserClaims(RegisteredUser user)
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.Name, user.Name),
+            new Claim(ClaimTypes.Email, user.Email),
+            new Claim("cpf", user.Cpf),
+            new Claim(ClaimTypes.Role, "Concurseiro")
+        ],
+        authenticationType: "AppAuth");
+
+        _currentState = new AuthenticationState(new ClaimsPrincipal(identity));
+        NotifyAuthenticationStateChanged(Task.FromResult(_currentState));
+    }
+
+    public sealed record UserProfile(
+        string Name,
+        string Email,
+        string Cpf,
+        string Address,
+        string Phone,
+        string Bio,
+        string PhotoUrl);
+
+    private sealed class RegisteredUser
+    {
+        public required string Name { get; set; }
+        public required string Cpf { get; set; }
+        public required string Email { get; set; }
+        public required string Password { get; set; }
+        public string Address { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string Bio { get; set; } = string.Empty;
+        public string PhotoUrl { get; set; } = string.Empty;
+    }
 }
