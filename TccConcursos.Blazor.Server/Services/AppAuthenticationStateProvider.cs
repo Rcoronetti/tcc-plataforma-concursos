@@ -265,7 +265,16 @@ public sealed class AppAuthenticationStateProvider : AuthenticationStateProvider
         string Address,
         string Phone,
         string Bio,
-        string PhotoUrl);
+        string PhotoUrl)
+    {
+        public string Name { get; set; } = Name;
+        public string Email { get; set; } = Email;
+        public string Cpf { get; set; } = Cpf;
+        public string Address { get; set; } = Address;
+        public string Phone { get; set; } = Phone;
+        public string Bio { get; set; } = Bio;
+        public string PhotoUrl { get; set; } = PhotoUrl;
+    }
 
     private sealed class RegisteredUser
     {
