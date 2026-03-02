@@ -98,7 +98,7 @@
 </MudStack>
 
 @code {
-    private AppAuthenticationStateProvider.UserProfile profile = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+    private AppAuthenticationStateProvider.UserProfile profile = new(Guid.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
     private PasswordModel passwordModel = new();
 
     private string? profileMessage;
@@ -118,21 +118,22 @@
 
     private string? AvatarImage => string.IsNullOrWhiteSpace(profile.PhotoUrl) ? null : profile.PhotoUrl;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        var loadedProfile = AuthProvider.GetCurrentUserProfile();
+        var loadedProfile = await AuthProvider.GetCurrentUserProfileAsync();
         if (loadedProfile is not null)
         {
             profile = loadedProfile;
         }
     }
 
-    private void SalvarPerfil()
+    private async Task SalvarPerfil()
     {
         profileMessage = null;
         profileError = null;
 
-        if (!AuthProvider.UpdateCurrentUserProfile(profile, out var error))
+        var (success, error) = await AuthProvider.UpdateCurrentUserProfileAsync(profile);
+        if (!success)
         {
             profileError = error;
             return;
@@ -141,7 +142,7 @@
         profileMessage = "Dados atualizados com sucesso.";
     }
 
-    private void AlterarSenha()
+    private async Task AlterarSenha()
     {
         passwordMessage = null;
         passwordError = null;
@@ -152,7 +153,8 @@
             return;
         }
 
-        if (!AuthProvider.ChangeCurrentUserPassword(passwordModel.CurrentPassword, passwordModel.NewPassword, out var error))
+        var (success, error) = await AuthProvider.ChangeCurrentUserPasswordAsync(passwordModel.CurrentPassword, passwordModel.NewPassword);
+        if (!success)
         {
             passwordError = error;
             return;
