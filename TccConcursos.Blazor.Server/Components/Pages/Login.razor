@@ -55,13 +55,14 @@
     private readonly LoginModel model = new();
     private string? erro;
 
-    private void Entrar()
+    private async Task Entrar()
     {
         erro = null;
 
-        if (!AuthProvider.Login(model.Login, model.Senha))
+        var (success, error) = await AuthProvider.LoginAsync(model.Login, model.Senha);
+        if (!success)
         {
-            erro = "Credenciais inválidas. Faça seu cadastro se for o primeiro acesso.";
+            erro = error;
             return;
         }
 

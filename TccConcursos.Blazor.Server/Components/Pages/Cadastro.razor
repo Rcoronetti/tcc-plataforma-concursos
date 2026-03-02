@@ -89,7 +89,8 @@
             return;
         }
 
-        if (!AuthProvider.Register(model.Nome, model.Cpf, model.Email, model.Senha, out var registerError))
+        var (success, registerError) = await AuthProvider.RegisterAsync(model.Nome, model.Cpf, model.Email, model.Senha);
+        if (!success)
         {
             erro = registerError;
             return;

@@ -104,6 +104,11 @@ O front-end estará disponível em outra porta (ex: https://localhost:7XXX).
 
 ## Notas de Desenvolvimento
 
+### Autenticação e perfil (estado atual)
+- As telas de **login/cadastro/configuração de usuário** persistem dados no PostgreSQL, via endpoints `/usuarios` da API.
+- A persistência é feita na tabela **`usuarios`** (migration `AddUsuariosTable`), com campos para nome, CPF, e-mail, senha, endereço, telefone, bio, foto e auditoria de atualização.
+- As telas de login e configuração de usuário usam o `AppAuthenticationStateProvider` com chamadas HTTP para a API.
+
 ### Criar uma nova migration
 Após alterar entidades no `DbContext`, use o comando:
 
@@ -115,5 +120,4 @@ Add-Migration NOME_DA_MIGRATION -Project TccConcursos.Infrastructure -StartupPro
 ```powershell
 Update-Database -Project TccConcursos.Infrastructure -StartupProject TccConcursos.Api
 ```
-
 

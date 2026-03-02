@@ -9,6 +9,89 @@ public sealed class ConcursosApi
         _httpClientFactory = httpClientFactory;
     }
 
+
+    public sealed record AuthResult<T>(bool Success, T? Data, string? ErrorMessage)
+    {
+        public static AuthResult<T> Ok(T data) => new(true, data, null);
+        public static AuthResult<T> Fail(string? error) => new(false, default, error);
+    }
+
+    public async Task<AuthResult<UsuarioProfileDto>> RegisterUsuarioAsync(RegisterUsuarioRequest request, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var resp = await client.PostAsJsonAsync("usuarios/cadastro", request, ct);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            return AuthResult<UsuarioProfileDto>.Fail(string.IsNullOrWhiteSpace(body) ? "Não foi possível concluir o cadastro." : body.Trim('"'));
+        }
+
+        var data = await resp.Content.ReadFromJsonAsync<UsuarioProfileDto>(cancellationToken: ct);
+        return data is null
+            ? AuthResult<UsuarioProfileDto>.Fail("API não retornou os dados do usuário.")
+            : AuthResult<UsuarioProfileDto>.Ok(data);
+    }
+
+    public async Task<AuthResult<UsuarioProfileDto>> LoginUsuarioAsync(LoginUsuarioRequest request, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var resp = await client.PostAsJsonAsync("usuarios/login", request, ct);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                return AuthResult<UsuarioProfileDto>.Fail("Credenciais inválidas. Faça seu cadastro se for o primeiro acesso.");
+            }
+
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            return AuthResult<UsuarioProfileDto>.Fail(string.IsNullOrWhiteSpace(body) ? "Não foi possível autenticar." : body.Trim('"'));
+        }
+
+        var data = await resp.Content.ReadFromJsonAsync<UsuarioProfileDto>(cancellationToken: ct);
+        return data is null
+            ? AuthResult<UsuarioProfileDto>.Fail("API não retornou os dados do usuário.")
+            : AuthResult<UsuarioProfileDto>.Ok(data);
+    }
+
+    public async Task<UsuarioProfileDto?> GetUsuarioProfileAsync(Guid usuarioId, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        return await client.GetFromJsonAsync<UsuarioProfileDto>($"usuarios/{usuarioId}/perfil", ct);
+    }
+
+    public async Task<AuthResult<UsuarioProfileDto>> UpdateUsuarioProfileAsync(Guid usuarioId, UpdateUsuarioProfileRequest request, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var resp = await client.PutAsJsonAsync($"usuarios/{usuarioId}/perfil", request, ct);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            return AuthResult<UsuarioProfileDto>.Fail(string.IsNullOrWhiteSpace(body) ? "Não foi possível atualizar o perfil." : body.Trim('"'));
+        }
+
+        var data = await resp.Content.ReadFromJsonAsync<UsuarioProfileDto>(cancellationToken: ct);
+        return data is null
+            ? AuthResult<UsuarioProfileDto>.Fail("API não retornou o perfil atualizado.")
+            : AuthResult<UsuarioProfileDto>.Ok(data);
+    }
+
+    public async Task<AuthResult<bool>> ChangeUsuarioPasswordAsync(Guid usuarioId, ChangeUsuarioPasswordRequest request, CancellationToken ct = default)
+    {
+        var client = _httpClientFactory.CreateClient("Api");
+        var resp = await client.PutAsJsonAsync($"usuarios/{usuarioId}/senha", request, ct);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            return AuthResult<bool>.Fail(string.IsNullOrWhiteSpace(body) ? "Não foi possível alterar a senha." : body.Trim('"'));
+        }
+
+        return AuthResult<bool>.Ok(true);
+    }
+
     public async Task<List<ConcursoDto>> GetConcursosAsync(CancellationToken ct = default)
     {
         var client = _httpClientFactory.CreateClient("Api");
@@ -209,6 +292,13 @@ public sealed class ConcursosApi
         var resp = await client.DeleteAsync($"topicos/{topicoId}/sessoes/{sessaoId}", ct);
         return resp.IsSuccessStatusCode;
     }
+
+
+    public sealed record RegisterUsuarioRequest(string Nome, string Cpf, string Email, string Senha);
+    public sealed record LoginUsuarioRequest(string Login, string Senha);
+    public sealed record UpdateUsuarioProfileRequest(string Nome, string Endereco, string Telefone, string Bio, string FotoUrl);
+    public sealed record ChangeUsuarioPasswordRequest(string SenhaAtual, string NovaSenha);
+    public sealed record UsuarioProfileDto(Guid Id, string Nome, string Email, string Cpf, string Endereco, string Telefone, string Bio, string FotoUrl);
 
     public sealed record ConcursoDto(Guid Id, string Nome, DateOnly? DataProva);
     public sealed record CreateConcursoRequest(string Nome, DateOnly? DataProva);
