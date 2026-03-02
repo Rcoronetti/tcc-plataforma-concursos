@@ -1,0 +1,120 @@
+@page "/cadastro"
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using System.ComponentModel.DataAnnotations
+@using TccConcursos.Blazor.Server.Services
+@inject AppAuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<PageTitle>Cadastro</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="mt-10">
+    <MudCard Elevation="6">
+        <MudCardHeader>
+            <MudText Typo="Typo.h5">Primeiro cadastro</MudText>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudForm @ref="form" Model="model">
+                <MudStack Spacing="2">
+                    <MudTextField @bind-Value="model.Nome"
+                                  Label="Nome completo"
+                                  Variant="Variant.Outlined"
+                                  Immediate="true"
+                                  For="@(() => model.Nome)" />
+
+                    <MudTextField @bind-Value="model.Cpf"
+                                  Label="CPF"
+                                  Variant="Variant.Outlined"
+                                  Immediate="true"
+                                  For="@(() => model.Cpf)" />
+
+                    <MudTextField @bind-Value="model.Email"
+                                  Label="E-mail"
+                                  Variant="Variant.Outlined"
+                                  Immediate="true"
+                                  For="@(() => model.Email)" />
+
+                    <MudTextField @bind-Value="model.Senha"
+                                  Label="Senha"
+                                  Variant="Variant.Outlined"
+                                  Immediate="true"
+                                  InputType="InputType.Password"
+                                  For="@(() => model.Senha)" />
+
+                    <MudTextField @bind-Value="model.ConfirmacaoSenha"
+                                  Label="Confirmar senha"
+                                  Variant="Variant.Outlined"
+                                  Immediate="true"
+                                  InputType="InputType.Password"
+                                  For="@(() => model.ConfirmacaoSenha)" />
+
+                    @if (!string.IsNullOrWhiteSpace(erro))
+                    {
+                        <MudAlert Severity="Severity.Error">@erro</MudAlert>
+                    }
+
+                    <MudButton Color="Color.Primary"
+                               Variant="Variant.Filled"
+                               OnClick="Cadastrar"
+                               FullWidth="true">
+                        Cadastrar
+                    </MudButton>
+
+                    <MudText Typo="Typo.caption">
+                        A senha deve ter pelo menos 8 caracteres, com maiúscula, minúscula, número e símbolo.
+                    </MudText>
+
+                    <MudText Typo="Typo.body2">
+                        Já tem conta? <MudLink Href="/login">Entrar</MudLink>
+                    </MudText>
+                </MudStack>
+            </MudForm>
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private MudForm? form;
+    private readonly CadastroModel model = new();
+    private string? erro;
+
+    private async Task Cadastrar()
+    {
+        erro = null;
+        await form!.Validate();
+
+        if (!(form?.IsValid ?? false))
+        {
+            return;
+        }
+
+        if (!AuthProvider.Register(model.Nome, model.Cpf, model.Email, model.Senha, out var registerError))
+        {
+            erro = registerError;
+            return;
+        }
+
+        Nav.NavigateTo("/login", forceLoad: false);
+    }
+
+    private sealed class CadastroModel
+    {
+        [Required(ErrorMessage = "Informe o nome completo")]
+        public string Nome { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o CPF")]
+        public string Cpf { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o e-mail")]
+        [EmailAddress(ErrorMessage = "Informe um e-mail válido")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe a senha")]
+        [MinLength(8, ErrorMessage = "A senha deve ter no mínimo 8 caracteres")]
+        public string Senha { get; set; } = string.Empty;
+
+        [Compare(nameof(Senha), ErrorMessage = "As senhas não conferem")]
+        public string ConfirmacaoSenha { get; set; } = string.Empty;
+    }
+}
