@@ -1,0 +1,73 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using TccConcursos.Blazor.Server.Services
+@inject AppAuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
+
+<PageTitle>Login</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="mt-10">
+    <MudCard Elevation="6">
+        <MudCardHeader>
+            <MudText Typo="Typo.h5">Entrar na plataforma</MudText>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudStack Spacing="2">
+                <MudTextField @bind-Value="model.Usuario"
+                              Label="Usuário"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              Immediate="true" />
+
+                <MudTextField @bind-Value="model.Senha"
+                              Label="Senha"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              InputType="InputType.Password"
+                              Immediate="true" />
+
+                @if (!string.IsNullOrWhiteSpace(erro))
+                {
+                    <MudAlert Severity="Severity.Error">@erro</MudAlert>
+                }
+
+                <MudButton Color="Color.Primary"
+                           Variant="Variant.Filled"
+                           OnClick="Entrar"
+                           FullWidth="true">
+                    Entrar
+                </MudButton>
+            </MudStack>
+        </MudCardContent>
+    </MudCard>
+
+    <MudText Typo="Typo.caption" Class="mt-2">
+        Dica para ambiente local: qualquer usuário e senha não vazios efetuam login.
+    </MudText>
+</MudContainer>
+
+@code {
+    private readonly LoginModel model = new();
+    private string? erro;
+
+    private void Entrar()
+    {
+        erro = null;
+
+        if (!AuthProvider.Login(model.Usuario, model.Senha))
+        {
+            erro = "Informe usuário e senha para continuar.";
+            return;
+        }
+
+        Nav.NavigateTo("/dashboard", forceLoad: false);
+    }
+
+    private sealed class LoginModel
+    {
+        public string Usuario { get; set; } = string.Empty;
+        public string Senha { get; set; } = string.Empty;
+    }
+}

@@ -1,68 +1,88 @@
-﻿@using MudBlazor
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using MudBlazor
 @using TccConcursos.Blazor.Server.Services
 @implements IDisposable
-@inject TccConcursos.Blazor.Server.Services.NavigationContext NavCtx
+@inject NavigationContext NavCtx
+@inject AppAuthenticationStateProvider AuthProvider
 
 <MudNavMenu Dense="true">
+    <AuthorizeView>
+        <Authorized>
+            <MudNavLink Href="/dashboard"
+                        Match="NavLinkMatch.All"
+                        Icon="@Icons.Material.Filled.Dashboard">
+                Dashboard
+            </MudNavLink>
 
-    <MudNavLink Href="/dashboard"
-                Match="NavLinkMatch.All"
-                Icon="@Icons.Material.Filled.Dashboard">
-        Dashboard
-    </MudNavLink>
+            <MudDivider Class="my-2" />
 
-    <MudDivider Class="my-2" />
+            <MudNavLink Href="/concursos"
+                        Match="NavLinkMatch.Prefix"
+                        Icon="@Icons.Material.Filled.EmojiEvents">
+                Concursos
+            </MudNavLink>
 
-    <MudNavLink Href="/concursos"
-                Match="NavLinkMatch.Prefix"
-                Icon="@Icons.Material.Filled.EmojiEvents">
-        Concursos
-    </MudNavLink>
+            @if (NavCtx.ConcursoId is not null)
+            {
+                <MudDivider Class="my-2" />
 
-    @if (NavCtx.ConcursoId is not null)
-    {
-        <MudDivider Class="my-2" />
+                <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas")"
+                            Match="NavLinkMatch.Prefix"
+                            Icon="@Icons.Material.Filled.School">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="nav-row">
+                        <MudText>Disciplinas</MudText>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="nav-chip">
+                            @NavCtx.ConcursoNome
+                        </MudChip>
+                    </MudStack>
+                </MudNavLink>
+            }
 
-        <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas")"
-                    Match="NavLinkMatch.Prefix"
-                    Icon="@Icons.Material.Filled.School">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="nav-row">
-                <MudText>Disciplinas</MudText>
-                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="nav-chip">
-                    @NavCtx.ConcursoNome
-                </MudChip>
-            </MudStack>
-        </MudNavLink>
-    }
+            @if (NavCtx.ConcursoId is not null && NavCtx.DisciplinaId is not null)
+            {
+                <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas/{NavCtx.DisciplinaId}/topicos")"
+                            Match="NavLinkMatch.Prefix"
+                            Icon="@Icons.Material.Filled.Bookmarks">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="nav-row">
+                        <MudText>Tópicos</MudText>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="nav-chip">
+                            @NavCtx.DisciplinaNome
+                        </MudChip>
+                    </MudStack>
+                </MudNavLink>
+            }
 
-    @if (NavCtx.ConcursoId is not null && NavCtx.DisciplinaId is not null)
-    {
-        <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas/{NavCtx.DisciplinaId}/topicos")"
-                    Match="NavLinkMatch.Prefix"
-                    Icon="@Icons.Material.Filled.Bookmarks">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="nav-row">
-                <MudText>Tópicos</MudText>
-                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="nav-chip">
-                    @NavCtx.DisciplinaNome
-                </MudChip>
-            </MudStack>
-        </MudNavLink>
-    }
+            @if (NavCtx.ConcursoId is not null && NavCtx.DisciplinaId is not null && NavCtx.TopicoId is not null)
+            {
+                <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas/{NavCtx.DisciplinaId}/topicos/{NavCtx.TopicoId}/sessoes")"
+                            Match="NavLinkMatch.Prefix"
+                            Icon="@Icons.Material.Filled.Timer">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="nav-row">
+                        <MudText>Sessões</MudText>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="nav-chip">
+                            @NavCtx.TopicoNome
+                        </MudChip>
+                    </MudStack>
+                </MudNavLink>
+            }
 
-    @if (NavCtx.ConcursoId is not null && NavCtx.DisciplinaId is not null && NavCtx.TopicoId is not null)
-    {
-        <MudNavLink Href="@($"/concursos/{NavCtx.ConcursoId}/disciplinas/{NavCtx.DisciplinaId}/topicos/{NavCtx.TopicoId}/sessoes")"
-                    Match="NavLinkMatch.Prefix"
-                    Icon="@Icons.Material.Filled.Timer">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="nav-row">
-                <MudText>Sessões</MudText>
-                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="nav-chip">
-                    @NavCtx.TopicoNome
-                </MudChip>
-            </MudStack>
-        </MudNavLink>
-    }
-
+            <MudDivider Class="my-2" />
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.Logout"
+                       OnClick="Sair"
+                       Class="w-100">
+                Logout
+            </MudButton>
+        </Authorized>
+        <NotAuthorized>
+            <MudNavLink Href="/login"
+                        Match="NavLinkMatch.All"
+                        Icon="@Icons.Material.Filled.Login">
+                Login
+            </MudNavLink>
+        </NotAuthorized>
+    </AuthorizeView>
 </MudNavMenu>
 
 <style>
@@ -109,4 +129,9 @@
 
     public void Dispose()
         => NavCtx.OnChange -= StateHasChanged;
+
+    private void Sair()
+    {
+        AuthProvider.Logout();
+    }
 }
