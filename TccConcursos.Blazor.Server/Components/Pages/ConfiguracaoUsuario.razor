@@ -1,0 +1,171 @@
+@page "/configuracao-usuario"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using MudBlazor
+@using TccConcursos.Blazor.Server.Services
+@inject AppAuthenticationStateProvider AuthProvider
+
+@attribute [Authorize]
+
+<PageTitle>Configuração do usuário</PageTitle>
+
+<MudStack Spacing="3">
+    <MudPaper Class="pa-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudAvatar Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled" Image="@AvatarImage">
+                @Initials
+            </MudAvatar>
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h6">@profile.Name</MudText>
+                <MudText Typo="Typo.body2">@profile.Email</MudText>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-4 h-100">
+                <MudText Typo="Typo.h6" Class="mb-3">Dados básicos</MudText>
+                <MudForm>
+                    <MudGrid>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="profile.Name" Label="Nome completo" Variant="Variant.Outlined" Required="true" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField Value="@profile.Email" Label="E-mail" Variant="Variant.Outlined" Disabled="true" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField Value="@CpfFormatado" Label="CPF" Variant="Variant.Outlined" Disabled="true" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="profile.Phone" Label="Telefone" Variant="Variant.Outlined" Placeholder="(00) 00000-0000" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="profile.Address" Label="Endereço" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="profile.Bio" Label="Sobre você" Variant="Variant.Outlined" Lines="3" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="profile.PhotoUrl" Label="URL da foto de perfil (opcional)" Variant="Variant.Outlined" />
+                            <MudText Typo="Typo.caption" Class="mt-1 d-block">
+                                Caso não tenha foto, exibimos automaticamente suas iniciais no avatar.
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+
+                    @if (!string.IsNullOrWhiteSpace(profileMessage))
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mt-3">@profileMessage</MudAlert>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(profileError))
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mt-3">@profileError</MudAlert>
+                    }
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" OnClick="SalvarPerfil">
+                        Salvar dados
+                    </MudButton>
+                </MudForm>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4 h-100">
+                <MudText Typo="Typo.h6" Class="mb-3">Alterar senha</MudText>
+
+                <MudTextField @bind-Value="passwordModel.CurrentPassword" Label="Senha atual" Variant="Variant.Outlined" InputType="InputType.Password" Required="true" />
+                <MudTextField @bind-Value="passwordModel.NewPassword" Label="Nova senha" Variant="Variant.Outlined" InputType="InputType.Password" Required="true" Class="mt-2" />
+                <MudTextField @bind-Value="passwordModel.ConfirmPassword" Label="Confirmar nova senha" Variant="Variant.Outlined" InputType="InputType.Password" Required="true" Class="mt-2" />
+
+                @if (!string.IsNullOrWhiteSpace(passwordMessage))
+                {
+                    <MudAlert Severity="Severity.Success" Class="mt-3">@passwordMessage</MudAlert>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(passwordError))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-3">@passwordError</MudAlert>
+                }
+
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" Class="mt-3" OnClick="AlterarSenha">
+                    Atualizar senha
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudStack>
+
+@code {
+    private AppAuthenticationStateProvider.UserProfile profile = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+    private PasswordModel passwordModel = new();
+
+    private string? profileMessage;
+    private string? profileError;
+    private string? passwordMessage;
+    private string? passwordError;
+
+    private string CpfFormatado => profile.Cpf.Length == 11
+        ? $"{profile.Cpf[..3]}.{profile.Cpf.Substring(3, 3)}.{profile.Cpf.Substring(6, 3)}-{profile.Cpf.Substring(9, 2)}"
+        : profile.Cpf;
+
+    private string Initials => string.Join(string.Empty,
+        profile.Name
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
+
+    private string? AvatarImage => string.IsNullOrWhiteSpace(profile.PhotoUrl) ? null : profile.PhotoUrl;
+
+    protected override void OnInitialized()
+    {
+        var loadedProfile = AuthProvider.GetCurrentUserProfile();
+        if (loadedProfile is not null)
+        {
+            profile = loadedProfile;
+        }
+    }
+
+    private void SalvarPerfil()
+    {
+        profileMessage = null;
+        profileError = null;
+
+        if (!AuthProvider.UpdateCurrentUserProfile(profile, out var error))
+        {
+            profileError = error;
+            return;
+        }
+
+        profileMessage = "Dados atualizados com sucesso.";
+    }
+
+    private void AlterarSenha()
+    {
+        passwordMessage = null;
+        passwordError = null;
+
+        if (!passwordModel.NewPassword.Equals(passwordModel.ConfirmPassword, StringComparison.Ordinal))
+        {
+            passwordError = "A confirmação da nova senha não confere.";
+            return;
+        }
+
+        if (!AuthProvider.ChangeCurrentUserPassword(passwordModel.CurrentPassword, passwordModel.NewPassword, out var error))
+        {
+            passwordError = error;
+            return;
+        }
+
+        passwordModel = new PasswordModel();
+        passwordMessage = "Senha alterada com sucesso.";
+    }
+
+    private sealed class PasswordModel
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}
