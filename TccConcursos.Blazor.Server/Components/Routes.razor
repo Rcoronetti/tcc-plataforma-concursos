@@ -6,14 +6,7 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
                 <NotAuthorized>
-                    <LayoutView Layout="@typeof(Layout.MainLayout)">
-                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
-                            Você precisa estar autenticado para acessar esta página.
-                        </MudAlert>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/login">
-                            Ir para login
-                        </MudButton>
-                    </LayoutView>
+                    <Auth.RedirectToLogin />
                 </NotAuthorized>
             </AuthorizeRouteView>
             <FocusOnNavigate RouteData="@routeData" Selector="h1" />

@@ -1,6 +1,8 @@
 ﻿@page "/"
 @page "/dashboard"
+@attribute [Authorize]
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
 @using MudBlazor
 @using TccConcursos.Blazor.Server.Services
 @inject ConcursosApi Api
