@@ -52,6 +52,9 @@
 </MudContainer>
 
 @code {
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
     private readonly LoginModel model = new();
     private string? erro;
 
@@ -66,7 +69,20 @@
             return;
         }
 
-        Nav.NavigateTo("/dashboard", forceLoad: false);
+        var destination = NormalizarDestino(ReturnUrl);
+
+        Nav.NavigateTo(destination, forceLoad: false);
+    }
+
+    private static string NormalizarDestino(string? returnUrl)
+    {
+        if (string.IsNullOrWhiteSpace(returnUrl))
+        {
+            return "/dashboard";
+        }
+
+        var decoded = Uri.UnescapeDataString(returnUrl);
+        return decoded.StartsWith('/') ? decoded : "/dashboard";
     }
 
     private sealed class LoginModel
