@@ -8,45 +8,62 @@ Aplicação web desenvolvida como Trabalho de Conclusão de Curso (**Pós-gradua
 
 ## Tecnologias
 - **C# / .NET 8**
-- **Blazor**
-- **ASP.NET Core Web API**
-- **PostgreSQL 18**
+- **Blazor Server** (UI com **MudBlazor**)
+- **ASP.NET Core Minimal API**
+- **PostgreSQL**
 - **Entity Framework Core 8 + Npgsql** (ORM e migrations)
 
 ---
 
 ## Status
-**Em desenvolvimento — Sprint 0 (Fundação)**
+**Em desenvolvimento — base funcional do MVP implementada**
 
 ---
 
-## Escopo inicial (MVP)
-- Autenticação (usuário)
-- Cadastro de concursos, disciplinas e tópicos
-- Registro de sessões de estudo (teoria/revisão/questões)
-- Registro de questões (quantidade e acertos)
-- Dashboard básico (tempo estudado e desempenho por disciplina)
+## Escopo atual (implementado)
+- Autenticação de usuário com:
+  - Cadastro (`/usuarios/cadastro`)
+  - Login (`/usuarios/login`)
+  - Edição de perfil (`/usuarios/{id}/perfil`)
+  - Alteração de senha (`/usuarios/{id}/senha`)
+- CRUD completo de concursos (`/concursos`)
+- CRUD completo de disciplinas por concurso (`/concursos/{concursoId}/disciplinas`)
+- CRUD completo de tópicos por disciplina (`/disciplinas/{disciplinaId}/topicos`)
+- CRUD completo de sessões de estudo por tópico (`/topicos/{topicoId}/sessoes`)
+  - Tipos de sessão: teoria, revisão e questões
+  - Regras de validação de duração e consistência de questões/acertos
+- Dashboard com agregações:
+  - Resumo geral (`/dashboard/resumo`)
+  - Métricas por disciplina (`/dashboard/por-disciplina`)
+  - Métricas por concurso (`/dashboard/por-concurso`)
+  - Métricas por tópico (`/dashboard/por-topico`)
+  - Variações por concurso específico
 
 ---
 
 ## Regras de negócio (resumo)
 - Cada usuário pode possuir **vários concursos**
-- Identificadores principais serão **UUID (Guid)**
+- Identificadores principais são **UUID (Guid)**
+- Não é permitido:
+  - Criar disciplina duplicada no mesmo concurso
+  - Criar tópico duplicado na mesma disciplina
+- Sessões com tipo **Questões** exigem quantidade total e acertos válidos
 
 ---
 
 ## Como executar
 
-Esta solução é composta por dois projetos principais que devem ser executados simultaneamente:
-+ **`TccConcursos.Api:`** A Web API back-end que gerencia os dados.
-+ **`TccConcursos.Blazor.Server:`** A aplicação web front-end.
+Esta solução contém os seguintes projetos:
++ **`src/TccConcursos.Api`**: API back-end (endpoints e regras de negócio).
++ **`TccConcursos.Blazor.Server`**: aplicação web principal (front-end).
++ **`src/TccConcursos.Domain`**: entidades e enums de domínio.
++ **`src/TccConcursos.Infrastructure`**: `DbContext` e migrations.
++ **`src/TccConcursos.Web`**: projeto web base (template), não utilizado no fluxo principal atual.
 
 ### Pré-requisitos
 - **.NET 8 SDK**
-- **PostgreSQL 18** rodando localmente na **porta 5433**
-- A database **`tccconcursos`** criada (com owner `postgres`)
-
-> Observação: Neste ambiente local foi utilizado o PostgreSQL 18 na porta **5433**. Se o seu ambiente usar outra porta, ajuste a `Connection String`.
+- **PostgreSQL** rodando localmente
+- Database **`tccconcursos`** criada
 
 ---
 
@@ -58,21 +75,23 @@ CREATE DATABASE tccconcursos OWNER = postgres ENCODING = 'UTF8';
 
 ### 2. Configurar as aplicações
 #### 2.1. Configurar a API (Connection String)
-Para não versionar senhas no Git, a connection string deve ficar em **User Secrets**.  
+Para não versionar senhas no Git, a connection string deve ficar em **User Secrets**.
 
-No Visual Studio: clique com o botão direito no projeto **TccConcursos.Api** → *Manage User Secrets*.  
+No Visual Studio: clique com o botão direito no projeto **TccConcursos.Api** → *Manage User Secrets*.
 Adicione o seguinte conteúdo ao arquivo `secrets.json`:
 
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=127.0.0.1;Port=5433;Database=tccconcursos;Username=postgres;Password=SUA_SENHA_AQUI"
+    "DefaultConnection": "Host=127.0.0.1;Port=5432;Database=tccconcursos;Username=postgres;Password=SUA_SENHA_AQUI"
   }
 }
 ```
 
+> Observação: se o seu PostgreSQL usar outra porta (ex.: `5433`), ajuste a connection string.
+
 #### 2.2. Configurar o Front-end (URL da API)
-O projeto Blazor precisa saber onde a API está rodando.Abra o arquivo `appsettings.json` no projeto **TccConcursos.Blazor.Server** e adicione a URL da sua API:
+O projeto Blazor precisa saber onde a API está rodando. Abra o arquivo `appsettings.json` no projeto **TccConcursos.Blazor.Server** e ajuste a URL:
 
 ```json
 {
@@ -81,14 +100,14 @@ O projeto Blazor precisa saber onde a API está rodando.Abra o arquivo `appsetti
 ```
 
 ### 3. Aplicar Migrations no Banco
-No Visual Studio, abra o **Package Manager Console**  
-(*Tools > NuGet Package Manager > Package Manager Console*) e execute o comando para criar as tabelas no banco:
+No Visual Studio, abra o **Package Manager Console**
+(*Tools > NuGet Package Manager > Package Manager Console*) e execute:
 
 ```powershell
 Update-Database -Project TccConcursos.Infrastructure -StartupProject TccConcursos.Api
 ```
-As migrations ficam em `TccConcursos.Infrastructure/Data/Migrations`,
-e a API é usada como StartupProject para carregar a configuração e a injeção de dependência.
+
+As migrations ficam em `src/TccConcursos.Infrastructure/Data/Migrations`.
 
 ### 4. Executar a Solução (API + Front-end)
 No Visual Studio, configure a solução para iniciar os dois projetos:
@@ -98,19 +117,30 @@ No Visual Studio, configure a solução para iniciar os dois projetos:
 + Para **TccConcursos.Api** e **TccConcursos.Blazor.Server**, mude a "Action" para `Start`.
 + Clique em `OK`.
 
-Pressione **F5** para executar. A API será iniciada e uma janela do navegador abrirá com a aplicação Blazor.
-A API estará disponível em `https://localhost:7043`.
-O front-end estará disponível em outra porta (ex: https://localhost:7XXX).
+Pressione **F5** para executar.
+- API (Swagger): `https://localhost:7043/swagger`
+- Front-end Blazor: `https://localhost:7098`
 
 ## Notas de Desenvolvimento
 
-### Autenticação e perfil (estado atual)
-- As telas de **login/cadastro/configuração de usuário** persistem dados no PostgreSQL, via endpoints `/usuarios` da API.
-- A persistência é feita na tabela **`usuarios`** (migration `AddUsuariosTable`), com campos para nome, CPF, e-mail, senha, endereço, telefone, bio, foto e auditoria de atualização.
-- As telas de login e configuração de usuário usam o `AppAuthenticationStateProvider` com chamadas HTTP para a API.
+### Banco e migrations (estado atual)
+- O projeto já possui migrations para:
+  - Estrutura inicial
+  - Tabelas de domínio (concursos, disciplinas, tópicos, sessões)
+  - Índices únicos para evitar duplicidade de disciplina/tópico
+  - Tabela de usuários
+
+### Front-end (estado atual)
+- Navegação protegida com autenticação na interface.
+- Telas implementadas para:
+  - Login e cadastro
+  - Configuração de usuário
+  - Dashboard
+  - Concursos, disciplinas, tópicos e sessões
+- Integração com API via `HttpClient` no serviço `ConcursosApi`.
 
 ### Criar uma nova migration
-Após alterar entidades no `DbContext`, use o comando:
+Após alterar entidades no `DbContext`, use:
 
 ```powershell
 Add-Migration NOME_DA_MIGRATION -Project TccConcursos.Infrastructure -StartupProject TccConcursos.Api -OutputDir Data/Migrations
@@ -120,4 +150,3 @@ Add-Migration NOME_DA_MIGRATION -Project TccConcursos.Infrastructure -StartupPro
 ```powershell
 Update-Database -Project TccConcursos.Infrastructure -StartupProject TccConcursos.Api
 ```
-
